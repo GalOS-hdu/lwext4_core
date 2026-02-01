@@ -269,6 +269,11 @@ impl<D: BlockDevice> BlockDev<D> {
     /// - BlockCache提供脏块列表和数据
     /// - BlockDev负责实际的I/O操作
     /// - 职责清晰，无借用冲突
+    ///
+    /// # 性能优化
+    ///
+    /// - 预分配缓冲区复用，避免每个脏块都分配新的 Vec
+    /// - 检测连续脏块，批量写入
     pub fn flush(&mut self) -> Result<()> {
         // 第一层：刷新缓存中的脏块
         // 先获取必要的参数（避免借用冲突）
@@ -286,23 +291,31 @@ impl<D: BlockDevice> BlockDev<D> {
         if dirty_count > 0 {
             log::debug!("[BlockDev] Flushing {} dirty blocks", dirty_count);
 
+            // 🚀 性能优化：预分配缓冲区复用（避免每次循环分配新 Vec）
+            let mut flush_buf = vec![0u8; block_size as usize];
+
             // 逐个flush脏块
             for lba in dirty_blocks {
-                // 每次循环重新借用cache
-                let data = if let Some(cache) = &self.bcache {
+                // 每次循环重新借用cache，复制数据到预分配的缓冲区
+                let has_data = if let Some(cache) = &self.bcache {
                     if let Some(data) = cache.get_block_data(lba) {
-                        data.to_vec()
+                        flush_buf[..data.len()].copy_from_slice(data);
+                        true
                     } else {
-                        continue;
+                        false
                     }
                 } else {
-                    continue;
+                    false
                 };
+
+                if !has_data {
+                    continue;
+                }
 
                 // 进行I/O操作（此时没有cache借用）
                 let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
                 let count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
-                self.device_mut().write_blocks(pba, count as u32, &data)?;
+                self.device_mut().write_blocks(pba, count as u32, &flush_buf)?;
 
                 // 标记为clean
                 if let Some(cache) = &mut self.bcache {

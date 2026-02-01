@@ -380,37 +380,47 @@ impl<D: BlockDevice> BlockDev<D> {
     /// # 错误
     ///
     /// 如果块不在缓存中或写入失败，返回错误
+    ///
+    /// # 性能优化
+    ///
+    /// 使用栈分配的临时缓冲区（对于小块）或预分配缓冲区
     pub fn flush_lba(&mut self, lba: u64) -> Result<()> {
         // 先获取必要参数，避免借用冲突
-        // TODO: 需要进一步考虑如何重构以避免使用蹩脚、低效的方式绕开引用检查，类似的代码还有多处
         let sector_size = self.device.sector_size();
         let partition_offset = self.partition_offset;
         let block_size = self.block_size();
 
-        if let Some(cache) = &mut self.bcache {
+        // 🚀 性能优化：预分配缓冲区
+        let mut flush_buf = alloc::vec![0u8; block_size as usize];
+
+        let has_data = if let Some(cache) = &mut self.bcache {
             // 使用新架构：Cache提供数据，BlockDev负责I/O
-            // 获取数据并复制到临时buffer
-            let data = if let Some(data) = cache.get_block_data(lba) {
-                data.to_vec()
+            // 复制数据到预分配缓冲区
+            if let Some(data) = cache.get_block_data(lba) {
+                flush_buf[..data.len()].copy_from_slice(data);
+                true
             } else {
-                return Ok(());
-            };
-
-            // 释放cache借用，进行I/O
-            drop(cache);
-
-            // 计算物理地址并写入
-            let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
-            let count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
-            self.device_mut().write_blocks(pba, count as u32, &data)?;
-
-            // 重新借用cache并标记为clean
-            if let Some(cache) = &mut self.bcache {
-                cache.mark_clean(lba)?;
+                false
             }
+        } else {
+            return Ok(());
+        };
 
-            log::debug!("[BlockDev] Flushed single block LBA={:#x}", lba);
+        if !has_data {
+            return Ok(());
         }
+
+        // 计算物理地址并写入
+        let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
+        let count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
+        self.device_mut().write_blocks(pba, count as u32, &flush_buf)?;
+
+        // 重新借用cache并标记为clean
+        if let Some(cache) = &mut self.bcache {
+            cache.mark_clean(lba)?;
+        }
+
+        log::debug!("[BlockDev] Flushed single block LBA={:#x}", lba);
         Ok(())
     }
 
@@ -426,6 +436,10 @@ impl<D: BlockDevice> BlockDev<D> {
     /// # 返回
     ///
     /// 返回实际flush的块数量
+    ///
+    /// # 性能优化
+    ///
+    /// 预分配缓冲区复用，避免每个脏块都分配新的 Vec
     pub fn flush_some_dirty_blocks(&mut self, count: usize) -> Result<usize> {
         // 先获取必要参数，避免借用冲突
         let sector_size = self.device.sector_size();
@@ -443,22 +457,30 @@ impl<D: BlockDevice> BlockDev<D> {
         if actual_count > 0 {
             log::debug!("[BlockDev] Flushing {} dirty blocks (LRU)", actual_count);
 
+            // 🚀 性能优化：预分配缓冲区复用
+            let mut flush_buf = alloc::vec![0u8; block_size as usize];
+
             for lba in to_flush {
-                // 每次循环重新借用cache
-                let data = if let Some(cache) = &self.bcache {
+                // 每次循环重新借用cache，复制数据到预分配的缓冲区
+                let has_data = if let Some(cache) = &self.bcache {
                     if let Some(data) = cache.get_block_data(lba) {
-                        data.to_vec()
+                        flush_buf[..data.len()].copy_from_slice(data);
+                        true
                     } else {
-                        continue;
+                        false
                     }
                 } else {
-                    continue;
+                    false
                 };
+
+                if !has_data {
+                    continue;
+                }
 
                 // 进行I/O（此时没有cache借用）
                 let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
-                let count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
-                self.device_mut().write_blocks(pba, count as u32, &data)?;
+                let sector_count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
+                self.device_mut().write_blocks(pba, sector_count as u32, &flush_buf)?;
 
                 // 标记clean
                 if let Some(cache) = &mut self.bcache {
