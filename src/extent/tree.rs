@@ -7,7 +7,6 @@ use crate::{
     types::{ext4_extent, ext4_extent_header, ext4_extent_idx, ext4_inode},
 };
 use log::*;
-use alloc::vec;
 
 /// Extent 树遍历器
 ///
@@ -315,13 +314,6 @@ impl<'a, D: BlockDevice> ExtentTree<'a, D> {
     /// # 使用场景
     ///
     /// 此方法设计为在 `InodeRef::with_inode` 闭包内使用，保证数据一致性。
-    ///
-    /// # 性能优化
-    ///
-    /// 实现了类似 lwext4 的块聚合（block coalescing）优化：
-    /// - 检测连续的物理块段
-    /// - 使用 `read_blocks_direct()` 批量读取连续块
-    /// - 减少系统调用次数，提升顺序读性能
     pub(crate) fn read_file_internal(
         &mut self,
         inode: &ext4_inode,
@@ -345,107 +337,28 @@ impl<'a, D: BlockDevice> ExtentTree<'a, D> {
         let to_read = core::cmp::min(buf.len() as u64, remaining) as usize;
 
         let block_size = self.block_size as u64;
-
-        // 计算块范围
-        let start_block = (offset / block_size) as u32;
-        let start_offset_in_block = (offset % block_size) as usize;
-        let end_offset = offset + to_read as u64;
-        let end_block = ((end_offset + block_size - 1) / block_size) as u32;
-
         let mut bytes_read = 0;
-        let mut current_block = start_block;
 
-        // 🚀 性能优化：复用块缓冲区（避免每次循环分配）
-        let mut block_buf = vec![0u8; block_size as usize];
+        while bytes_read < to_read {
+            let current_offset = offset + bytes_read as u64;
+            let block_num = (current_offset / block_size) as u32;
+            let block_offset = (current_offset % block_size) as usize;
 
-        // 处理首块（可能有偏移）
-        if start_offset_in_block > 0 && current_block < end_block {
-            let bytes_in_first_block = core::cmp::min(
-                block_size as usize - start_offset_in_block,
-                to_read,
+            // 计算本次读取的字节数
+            let bytes_in_block = core::cmp::min(
+                block_size as usize - block_offset,
+                to_read - bytes_read,
             );
 
-            match self.map_block_internal(inode, current_block)? {
-                Some(physical_block) => {
-                    // 读取首块
-                    self.bdev.read_blocks_direct(physical_block, 1, &mut block_buf)?;
-                    buf[..bytes_in_first_block].copy_from_slice(
-                        &block_buf[start_offset_in_block..start_offset_in_block + bytes_in_first_block]
-                    );
-                }
-                None => {
-                    // 空洞，填充零
-                    buf[..bytes_in_first_block].fill(0);
-                }
-            }
+            // 读取块
+            let mut block_buf = alloc::vec![0u8; block_size as usize];
+            self.read_block(inode, block_num, &mut block_buf)?;
 
-            bytes_read = bytes_in_first_block;
-            current_block += 1;
-        }
+            // 复制数据到输出缓冲区
+            buf[bytes_read..bytes_read + bytes_in_block]
+                .copy_from_slice(&block_buf[block_offset..block_offset + bytes_in_block]);
 
-        // 🚀 块聚合优化：处理中间的整块
-        // 类似 lwext4 的 flush_fblock_segment 策略
-        while current_block < end_block && bytes_read + block_size as usize <= to_read {
-            // 获取当前块的物理地址
-            let first_physical = match self.map_block_internal(inode, current_block)? {
-                Some(p) => p,
-                None => {
-                    // 空洞块，填充零并继续
-                    let dest = &mut buf[bytes_read..bytes_read + block_size as usize];
-                    dest.fill(0);
-                    bytes_read += block_size as usize;
-                    current_block += 1;
-                    continue;
-                }
-            };
-
-            // 检测连续物理块段
-            let mut consecutive_count = 1u32;
-            let mut next_block = current_block + 1;
-
-            while next_block < end_block
-                && bytes_read + (consecutive_count as usize + 1) * block_size as usize <= to_read
-                && consecutive_count < 64  // 限制单次批量读取的块数，避免过大的缓冲区
-            {
-                match self.map_block_internal(inode, next_block)? {
-                    Some(p) if p == first_physical + consecutive_count as u64 => {
-                        // 物理块连续，累加计数
-                        consecutive_count += 1;
-                        next_block += 1;
-                    }
-                    _ => {
-                        // 不连续或空洞，结束当前段
-                        break;
-                    }
-                }
-            }
-
-            // 批量读取连续块段
-            let bytes_to_read = consecutive_count as usize * block_size as usize;
-            let dest = &mut buf[bytes_read..bytes_read + bytes_to_read];
-
-            self.bdev.read_blocks_direct(first_physical, consecutive_count, dest)?;
-
-            bytes_read += bytes_to_read;
-            current_block += consecutive_count;
-        }
-
-        // 处理尾块（可能不完整）
-        if bytes_read < to_read && current_block < end_block {
-            let bytes_in_last_block = to_read - bytes_read;
-
-            match self.map_block_internal(inode, current_block)? {
-                Some(physical_block) => {
-                    self.bdev.read_blocks_direct(physical_block, 1, &mut block_buf)?;
-                    buf[bytes_read..bytes_read + bytes_in_last_block]
-                        .copy_from_slice(&block_buf[..bytes_in_last_block]);
-                }
-                None => {
-                    buf[bytes_read..bytes_read + bytes_in_last_block].fill(0);
-                }
-            }
-
-            bytes_read += bytes_in_last_block;
+            bytes_read += bytes_in_block;
         }
 
         Ok(bytes_read)
