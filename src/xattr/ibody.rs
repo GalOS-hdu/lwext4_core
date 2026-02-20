@@ -60,7 +60,7 @@ fn get_ibody_header_offset<D: BlockDevice>(
         if extra_isize == 0 {
             None
         } else {
-            Some(EXT4_GOOD_OLD_INODE_SIZE as usize + extra_isize)
+            Some(EXT4_GOOD_OLD_INODE_SIZE + extra_isize)
         }
     })
 }
@@ -184,7 +184,7 @@ pub fn list_ibody_xattr<D: BlockDevice>(
     };
 
     // 验证 xattr 数据
-    if let Err(_) = validate_ibody_xattr(inode_ref) {
+    if validate_ibody_xattr(inode_ref).is_err() {
         // 如果验证失败，返回 0（无 xattr）
         return Ok(0);
     }
@@ -258,8 +258,8 @@ pub fn list_ibody_xattr<D: BlockDevice>(
 
             // 移动到下一个 entry
             // EXT4_XATTR_LEN = (name_len + ROUND + sizeof(entry)) & ~ROUND
-            let len = ((entry_name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
-                & !(EXT4_XATTR_ROUND as usize));
+            let len = (entry_name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
+                & !(EXT4_XATTR_ROUND as usize);
             offset += len;
         }
 

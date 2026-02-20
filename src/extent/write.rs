@@ -24,12 +24,12 @@
 //!
 //! - Transaction 系统（用于保证原子性）
 //! - balloc 模块（用于分配和释放物理块）
-//! TODO：write.rs过于臃肿，可以尝试逻辑与功能到不同文件中 
+//!
+//! TODO：write.rs过于臃肿，可以尝试逻辑与功能到不同文件中
 
 use crate::{
     balloc::{self, BlockAllocator},
     block::{Block, BlockDevice},
-    consts::*,
     error::{Error, ErrorKind, Result},
     fs::InodeRef,
     superblock::Superblock,
@@ -102,7 +102,7 @@ pub fn tree_init<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<()> {
     })?;
 
     // 标记 inode 为 dirty
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
 
     Ok(())
 }
@@ -348,8 +348,7 @@ pub fn get_blocks<D: BlockDevice>(
 
     // 🚀 性能优化：降低日志级别
     debug!(
-        "[EXTENT WRITE] Allocated blocks: logical={}, physical={:#x}, count={}, goal={:#x}",
-        logical_block, physical_block, actual_allocated, goal
+        "[EXTENT WRITE] Allocated blocks: logical={logical_block}, physical={physical_block:#x}, count={actual_allocated}, goal={goal:#x}"
     );
 
     // 3.4 插入新 extent（支持自动 split/grow）
@@ -387,8 +386,7 @@ pub fn get_blocks<D: BlockDevice>(
         Err(e) => {
             // 插入失败，释放已分配的块
             error!(
-                "[EXTENT WRITE] Failed to insert extent: logical={}, physical={:#x}, error={:?}",
-                logical_block, physical_block, e
+                "[EXTENT WRITE] Failed to insert extent: logical={logical_block}, physical={physical_block:#x}, error={e:?}"
             );
             let _ = balloc::free_blocks(
                 inode_ref.bdev(),
@@ -441,8 +439,7 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
     })?;
 
     log::debug!(
-        "[EXTENT_INSERT] logical={}, physical=0x{:x}, len={}, is_full={}, depth={}, entries={}/{}",
-        logical_block, physical_block, length, is_full, depth, entries, max
+        "[EXTENT_INSERT] logical={logical_block}, physical=0x{physical_block:x}, len={length}, is_full={is_full}, depth={depth}, entries={entries}/{max}"
     );
 
     // 2. 根据当前状态决定插入策略
@@ -460,12 +457,12 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
         let leaf_block: u64 = (match new_depth {
             1 => {
                 // depth 0->1: new_block 就是叶子节点
-                log::debug!("[EXTENT_INSERT] After grow (0->1), new_block 0x{:x} is leaf", new_block);
+                log::debug!("[EXTENT_INSERT] After grow (0->1), new_block 0x{new_block:x} is leaf");
                 Ok(new_block)
             }
             2 => {
                 // depth 1->2: new_block 是索引节点，读取其第一个 index 指向的叶子块
-                log::debug!("[EXTENT_INSERT] After grow (1->2), new_block 0x{:x} is index node", new_block);
+                log::debug!("[EXTENT_INSERT] After grow (1->2), new_block 0x{new_block:x} is index node");
 
                 Block::get(inode_ref.bdev(), new_block)
                     .and_then(|mut idx_block| {
@@ -477,7 +474,7 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
 
                             let depth_check = u16::from_le(header.depth);
                             if depth_check != 1 {
-                                log::error!("[EXTENT_INSERT] Expected depth=1 in new index block, got {}", depth_check);
+                                log::error!("[EXTENT_INSERT] Expected depth=1 in new index block, got {depth_check}");
                                 return Err(Error::new(
                                     ErrorKind::Corrupted,
                                     "Expected depth=1 in new index block after grow",
@@ -487,12 +484,12 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
                             // 读取第一个 index
                             let header_size = core::mem::size_of::<ext4_extent_header>();
                             let idx_ptr = unsafe {
-                                (data.as_ptr() as *const u8).add(header_size) as *const ext4_extent_idx
+                                data.as_ptr().add(header_size) as *const ext4_extent_idx
                             };
                             let idx = unsafe { &*idx_ptr };
 
                             let leaf = super::helpers::ext4_idx_pblock(idx);
-                            log::debug!("[EXTENT_INSERT] Read first index from 0x{:x}: leaf=0x{:x}", new_block, leaf);
+                            log::debug!("[EXTENT_INSERT] Read first index from 0x{new_block:x}: leaf=0x{leaf:x}");
                             Ok(leaf)
                         }) {
                             Ok(inner_result) => inner_result,  // 返回内层 Result<u64>
@@ -504,7 +501,7 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
                 // TODO: depth > 2 需要递归遍历索引树找到叶子节点
                 // 当前实现仅支持 depth <= 2，这在绝大多数情况下足够
                 // (depth=2 可支持约 340*340*32K = 3.7TB 文件)
-                log::error!("[EXTENT_INSERT] Tree depth {} not supported after grow", new_depth);
+                log::error!("[EXTENT_INSERT] Tree depth {new_depth} not supported after grow");
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "Tree depth > 2 not supported after grow",
@@ -512,7 +509,7 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
             }
         })?;
 
-        log::debug!("[EXTENT_INSERT] After grow, inserting to leaf block 0x{:x}", leaf_block);
+        log::debug!("[EXTENT_INSERT] After grow, inserting to leaf block 0x{leaf_block:x}");
         insert_extent_to_leaf_direct(inode_ref, sb, allocator, leaf_block, logical_block, physical_block, length)?;
     } else if depth == 0 {
         // 深度为 0 且未满，直接插入到根节点（inode.blocks）
@@ -527,13 +524,13 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
         insert_extent_simple(inode_ref, &extent)?;
     } else {
         // 深度 > 0 且未满，需要插入到叶子节点
-        log::debug!("[EXTENT_INSERT] Depth={} and not full, inserting to leaf", depth);
+        log::debug!("[EXTENT_INSERT] Depth={depth} and not full, inserting to leaf");
 
         // 🔧 关键修复：根据 logical_block 查找正确的目标叶子块
         // 不能使用 read_first_leaf_block，因为它总是返回第一个索引
         // 必须遍历索引树找到包含 logical_block 的正确叶子
         let leaf_block = find_target_leaf_block(inode_ref, logical_block)?;
-        log::debug!("[EXTENT_INSERT] Found target leaf block for logical={}: 0x{:x}", logical_block, leaf_block);
+        log::debug!("[EXTENT_INSERT] Found target leaf block for logical={logical_block}: 0x{leaf_block:x}");
 
         insert_extent_to_leaf_direct(inode_ref, sb, allocator, leaf_block, logical_block, physical_block, length)?;
     }
@@ -581,8 +578,7 @@ fn find_target_leaf_block<D: BlockDevice>(
             let idx_block = u32::from_le(idx.block);
 
             log::debug!(
-                "[FIND_TARGET_LEAF] Index[{}]: idx_block={}, comparing with logical={}",
-                i, idx_block, logical_block
+                "[FIND_TARGET_LEAF] Index[{i}]: idx_block={idx_block}, comparing with logical={logical_block}"
             );
 
             if logical_block >= idx_block {
@@ -599,8 +595,7 @@ fn find_target_leaf_block<D: BlockDevice>(
         let child_block = super::helpers::ext4_idx_pblock(&idx);
 
         log::debug!(
-            "[FIND_TARGET_LEAF] Selected child_block=0x{:x} for logical={}",
-            child_block, logical_block
+            "[FIND_TARGET_LEAF] Selected child_block=0x{child_block:x} for logical={logical_block}"
         );
 
         Ok((child_block, depth))
@@ -638,8 +633,7 @@ fn traverse_to_leaf<D: BlockDevice>(
             let entries = u16::from_le(header.entries);
 
             log::debug!(
-                "[TRAVERSE_LEAF] At block=0x{:x}, depth={}, entries={}, searching for logical={}",
-                current_block, node_depth, entries, logical_block
+                "[TRAVERSE_LEAF] At block=0x{current_block:x}, depth={node_depth}, entries={entries}, searching for logical={logical_block}"
             );
 
             // 遍历索引，找到最后一个 logical_block >= idx.block 的
@@ -669,7 +663,7 @@ fn traverse_to_leaf<D: BlockDevice>(
 
             let child = super::helpers::ext4_idx_pblock(&idx);
 
-            log::debug!("[TRAVERSE_LEAF] Selected child=0x{:x}", child);
+            log::debug!("[TRAVERSE_LEAF] Selected child=0x{child:x}");
 
             Ok(child)
         })??;
@@ -678,7 +672,7 @@ fn traverse_to_leaf<D: BlockDevice>(
         current_depth -= 1;
     }
 
-    log::debug!("[TRAVERSE_LEAF] Found leaf block: 0x{:x}", current_block);
+    log::debug!("[TRAVERSE_LEAF] Found leaf block: 0x{current_block:x}");
     Ok(current_block)
 }
 
@@ -717,8 +711,7 @@ fn read_first_leaf_block<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<
         let child_block = super::helpers::ext4_idx_pblock(idx);
 
         log::debug!(
-            "[READ_LEAF_BLOCK] root_depth={}, first_child=0x{:x}",
-            depth, child_block
+            "[READ_LEAF_BLOCK] root_depth={depth}, first_child=0x{child_block:x}"
         );
 
         Ok((child_block, depth))
@@ -730,7 +723,7 @@ fn read_first_leaf_block<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<
 
     while current_depth > 0 {
         // 读取当前index节点的第一个索引
-        let block_size = inode_ref.bdev().block_size();
+        let _block_size = inode_ref.bdev().block_size();
         let mut block = crate::block::Block::get(inode_ref.bdev(), current_block)?;
 
         let child_block = block.with_data(|data| {
@@ -748,22 +741,20 @@ fn read_first_leaf_block<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<
             let node_depth = u16::from_le(header.depth);
             if node_depth != current_depth {
                 log::warn!(
-                    "[READ_LEAF_BLOCK] Depth mismatch: expected={}, actual={}",
-                    current_depth, node_depth
+                    "[READ_LEAF_BLOCK] Depth mismatch: expected={current_depth}, actual={node_depth}"
                 );
             }
 
             // 读取第一个索引
             let header_size = core::mem::size_of::<crate::types::ext4_extent_header>();
             let idx = unsafe {
-                &*((data.as_ptr() as *const u8).add(header_size) as *const crate::types::ext4_extent_idx)
+                &*(data.as_ptr().add(header_size) as *const crate::types::ext4_extent_idx)
             };
 
             let child = super::helpers::ext4_idx_pblock(idx);
 
             log::debug!(
-                "[READ_LEAF_BLOCK] Traversing: block=0x{:x}, depth={} -> child=0x{:x}",
-                current_block, current_depth, child
+                "[READ_LEAF_BLOCK] Traversing: block=0x{current_block:x}, depth={current_depth} -> child=0x{child:x}"
             );
 
             Ok(child)
@@ -773,7 +764,7 @@ fn read_first_leaf_block<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<
         current_depth -= 1;
     }
 
-    log::debug!("[READ_LEAF_BLOCK] Found leaf block: 0x{:x}", current_block);
+    log::debug!("[READ_LEAF_BLOCK] Found leaf block: 0x{current_block:x}");
     Ok(current_block)
 }
 
@@ -801,8 +792,7 @@ fn insert_extent_to_leaf_direct<D: BlockDevice>(
     length: u32,
 ) -> Result<()> {
     log::debug!(
-        "[EXTENT_LEAF_DIRECT] Inserting to leaf block 0x{:x}: logical={}, physical=0x{:x}, len={}",
-        leaf_block, logical_block, physical_block, length
+        "[EXTENT_LEAF_DIRECT] Inserting to leaf block 0x{leaf_block:x}: logical={logical_block}, physical=0x{physical_block:x}, len={length}"
     );
 
     // 首先尝试直接插入
@@ -852,8 +842,7 @@ fn insert_extent_to_leaf_direct<D: BlockDevice>(
             )?;
 
             log::debug!(
-                "[EXTENT_LEAF_DIRECT] Target leaf after split: 0x{:x}",
-                new_leaf_block
+                "[EXTENT_LEAF_DIRECT] Target leaf after split: 0x{new_leaf_block:x}"
             );
 
             // 重试插入（分裂后必定有空间）
@@ -929,9 +918,8 @@ fn try_insert_to_leaf_block<D: BlockDevice>(
             // 🔧 关键修复：检查是否已存在相同的逻辑块
             if existing_block == logical_block {
                 log::error!(
-                    "[EXTENT_INSERT] DUPLICATE DETECTED: logical_block={} already exists at pos {}, \
-                     existing_physical=0x{:x}, new_physical=0x{:x}",
-                    logical_block, i, existing_physical, physical_block
+                    "[EXTENT_INSERT] DUPLICATE DETECTED: logical_block={logical_block} already exists at pos {i}, \
+                     existing_physical=0x{existing_physical:x}, new_physical=0x{physical_block:x}"
                 );
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
@@ -1118,8 +1106,7 @@ fn try_insert_to_leaf_block<D: BlockDevice>(
         new_extent.start_hi = ((physical_block >> 32) as u16).to_le();
 
         log::debug!(
-            "[EXTENT_INSERT] Writing extent at pos {}: logical={}, physical=0x{:x}, len={}",
-            insert_pos, logical_block, physical_block, length
+            "[EXTENT_INSERT] Writing extent at pos {insert_pos}: logical={logical_block}, physical=0x{physical_block:x}, len={length}"
         );
 
         // 更新 header
@@ -1148,7 +1135,7 @@ fn build_extent_path_for_leaf<D: BlockDevice>(
         let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
         let header = unsafe { &*header_ptr };
         let depth = u16::from_le(header.depth);
-        (header.clone(), depth)
+        (*header, depth)
     })?;
 
     let mut path = ExtentPath::new(max_depth);
@@ -1180,10 +1167,10 @@ fn build_extent_path_for_leaf<D: BlockDevice>(
             // 读取当前层的节点 header
             let mut block = Block::get(inode_ref.bdev(), current_block)?;
             let node_header = block.with_data(|data| {
-                let header = unsafe {
+                
+                unsafe {
                     *(data.as_ptr() as *const ext4_extent_header)
-                };
-                header.clone()
+                }
             })?;
 
             // 验证深度一致性
@@ -1211,8 +1198,7 @@ fn build_extent_path_for_leaf<D: BlockDevice>(
             });
 
             log::debug!(
-                "[BUILD_PATH] Added node: depth={}, block=0x{:x}, type={:?}",
-                node_depth, current_block, node_type
+                "[BUILD_PATH] Added node: depth={node_depth}, block=0x{current_block:x}, type={node_type:?}"
             );
 
             // 如果是叶子节点，完成路径构建
@@ -1236,8 +1222,7 @@ fn build_extent_path_for_leaf<D: BlockDevice>(
             current_depth -= 1;
 
             log::debug!(
-                "[BUILD_PATH] Moving to next level: block=0x{:x}, depth={}",
-                current_block, current_depth
+                "[BUILD_PATH] Moving to next level: block=0x{current_block:x}, depth={current_depth}"
             );
         }
 
@@ -1260,8 +1245,7 @@ fn determine_target_leaf_after_split<D: BlockDevice>(
     let depth = path.nodes[0].header.depth();
 
     log::debug!(
-        "[DETERMINE_TARGET] Starting: depth={}, logical_block={}",
-        depth, logical_block
+        "[DETERMINE_TARGET] Starting: depth={depth}, logical_block={logical_block}"
     );
 
     // 支持任意深度的树
@@ -1285,8 +1269,7 @@ fn determine_target_leaf_after_split<D: BlockDevice>(
             let next_block = super::helpers::ext4_idx_pblock(idx);
 
             log::debug!(
-                "[DETERMINE_TARGET] Index {}: idx_block={}, next_block=0x{:x}",
-                i, idx_block, next_block
+                "[DETERMINE_TARGET] Index {i}: idx_block={idx_block}, next_block=0x{next_block:x}"
             );
 
             if logical_block >= idx_block {
@@ -1331,8 +1314,7 @@ fn determine_target_leaf_after_split<D: BlockDevice>(
                 let next_block = super::helpers::ext4_idx_pblock(idx);
 
                 log::debug!(
-                    "[DETERMINE_TARGET] Index {}: idx_block={}, next_block=0x{:x}",
-                    i, idx_block, next_block
+                    "[DETERMINE_TARGET] Index {i}: idx_block={idx_block}, next_block=0x{next_block:x}"
                 );
 
                 if logical_block >= idx_block {
@@ -1346,7 +1328,7 @@ fn determine_target_leaf_after_split<D: BlockDevice>(
                 current_block = Some(super::helpers::ext4_idx_pblock(idx));
                 current_depth -= 1;
             } else {
-                log::error!("[DETERMINE_TARGET] No matching index found at depth {}!", current_depth);
+                log::error!("[DETERMINE_TARGET] No matching index found at depth {current_depth}!");
                 return Err(Error::new(
                     ErrorKind::Corrupted,
                     "No matching index found in index block after split",
@@ -1363,8 +1345,7 @@ fn determine_target_leaf_after_split<D: BlockDevice>(
     // 此时 current_block 应该指向目标叶子块
     if let Some(leaf_block) = current_block {
         log::debug!(
-            "[DETERMINE_TARGET] Final target: leaf_block=0x{:x}",
-            leaf_block
+            "[DETERMINE_TARGET] Final target: leaf_block=0x{leaf_block:x}"
         );
         Ok(leaf_block)
     } else {
@@ -1389,7 +1370,7 @@ fn insert_extent_to_leaf<D: BlockDevice>(
     length: u32,
 ) -> Result<()> {
     // 查找包含 logical_block 的叶子节点
-    let (leaf_block, depth) = inode_ref.with_inode(|inode| -> Result<(u64, u16)> {
+    let (leaf_block, _depth) = inode_ref.with_inode(|inode| -> Result<(u64, u16)> {
         let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
         let header = unsafe { &*header_ptr };
         let depth = u16::from_le(header.depth);
@@ -1423,8 +1404,7 @@ fn insert_extent_to_leaf<D: BlockDevice>(
         let leaf_block = (leaf_hi as u64) << 32 | (leaf_lo as u64);
 
         log::debug!(
-            "[EXTENT_LEAF] Read index: leaf_lo=0x{:x}, leaf_hi=0x{:x}, leaf_block=0x{:x}, depth={}",
-            leaf_lo, leaf_hi, leaf_block, depth
+            "[EXTENT_LEAF] Read index: leaf_lo=0x{leaf_lo:x}, leaf_hi=0x{leaf_hi:x}, leaf_block=0x{leaf_block:x}, depth={depth}"
         );
 
         Ok((leaf_block, depth))
@@ -1510,9 +1490,8 @@ pub(crate) fn insert_extent_simple<D: BlockDevice>(
                 let existing_physical = crate::extent::helpers::ext4_ext_pblock(&existing_extent);
                 let new_physical = crate::extent::helpers::ext4_ext_pblock(extent);
                 log::error!(
-                    "[EXTENT_INSERT_SIMPLE] DUPLICATE DETECTED: logical_block={} already exists at pos {}, \
-                     existing_physical=0x{:x}, new_physical=0x{:x}",
-                    new_block, i, existing_physical, new_physical
+                    "[EXTENT_INSERT_SIMPLE] DUPLICATE DETECTED: logical_block={new_block} already exists at pos {i}, \
+                     existing_physical=0x{existing_physical:x}, new_physical=0x{new_physical:x}"
                 );
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
@@ -1550,10 +1529,10 @@ pub(crate) fn insert_extent_simple<D: BlockDevice>(
         header.entries = (entries + 1).to_le();
 
         Ok(())
-    })?;
+    })??;
 
     // 标记 inode 为脏
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
 
     Ok(())
 }
@@ -1634,8 +1613,7 @@ fn find_extent_in_multilevel_tree<D: BlockDevice>(
     let entries = u16::from_le(header.entries);
 
     log::debug!(
-        "[FIND_EXTENT_MULTI] depth={}, entries={}, searching for logical={}",
-        depth, entries, logical_block
+        "[FIND_EXTENT_MULTI] depth={depth}, entries={entries}, searching for logical={logical_block}"
     );
 
     // 如果已经是叶子节点，直接查找
@@ -1671,8 +1649,7 @@ fn find_extent_in_multilevel_tree<D: BlockDevice>(
         let child_block = (leaf_hi as u64) << 32 | (leaf_lo as u64);
 
         log::debug!(
-            "[FIND_EXTENT_MULTI] Index[{}]: idx_block={}, child_block=0x{:x}",
-            i, idx_block, child_block
+            "[FIND_EXTENT_MULTI] Index[{i}]: idx_block={idx_block}, child_block=0x{child_block:x}"
         );
 
         // 找到最后一个 logical_block >= idx.block 的索引
@@ -1692,8 +1669,7 @@ fn find_extent_in_multilevel_tree<D: BlockDevice>(
         };
 
         log::debug!(
-            "[FIND_EXTENT_MULTI] Selected index[{}], reading child block 0x{:x}",
-            idx_num, child_block
+            "[FIND_EXTENT_MULTI] Selected index[{idx_num}], reading child block 0x{child_block:x}"
         );
 
         let mut block = Block::get(inode_ref.bdev(), child_block)?;
@@ -1722,8 +1698,7 @@ fn find_extent_in_multilevel_tree<D: BlockDevice>(
         let child_depth = u16::from_le(child_header.depth);
         let child_entries = u16::from_le(child_header.entries);
         log::debug!(
-            "[FIND_EXTENT_MULTI] Child node: depth={}, entries={}",
-            child_depth, child_entries
+            "[FIND_EXTENT_MULTI] Child node: depth={child_depth}, entries={child_entries}"
         );
 
         // 递归查找
@@ -1740,8 +1715,7 @@ fn find_extent_in_leaf(node_data: &[u8], logical_block: u32) -> Result<Option<ex
     let entries = u16::from_le(header.entries);
 
     log::debug!(
-        "[FIND_EXTENT_LEAF] Searching in leaf: entries={}, logical={}",
-        entries, logical_block
+        "[FIND_EXTENT_LEAF] Searching in leaf: entries={entries}, logical={logical_block}"
     );
 
     let header_size = core::mem::size_of::<ext4_extent_header>();
@@ -2633,7 +2607,7 @@ fn apply_extent_removal<D: BlockDevice>(
     // 情况 2: 删除范围在 extent 开头
     else if from <= ee_block && to < ee_end && to >= ee_block {
         // 截断开头
-        let removed_len = (to - ee_block + 1) as u32;
+        let removed_len = to - ee_block + 1;
         let new_len = ee_len - removed_len;
         let new_block = to + 1;
         let new_start = ee_start + removed_len as u64;
@@ -2647,7 +2621,7 @@ fn apply_extent_removal<D: BlockDevice>(
     // 情况 3: 删除范围在 extent 结尾
     else if from > ee_block && to >= ee_end && from <= ee_end {
         // 截断结尾
-        let removed_len = (ee_end - from + 1) as u32;
+        let removed_len = ee_end - from + 1;
         let new_len = ee_len - removed_len;
         let removed_start = ee_start + (from - ee_block) as u64;
 
@@ -2660,9 +2634,9 @@ fn apply_extent_removal<D: BlockDevice>(
     // 情况 4: 删除范围在 extent 中间（需要分裂）
     else if from > ee_block && to < ee_end {
         // 分裂成两个 extent
-        let left_len = (from - ee_block) as u32;
-        let middle_len = (to - from + 1) as u32;
-        let right_len = (ee_end - to) as u32;
+        let left_len = from - ee_block;
+        let middle_len = to - from + 1;
+        let right_len = ee_end - to;
 
         let middle_start = ee_start + left_len as u64;
         let right_block = to + 1;
@@ -2728,9 +2702,9 @@ fn remove_extent_at_index<D: BlockDevice>(
         header.entries = (entries - 1).to_le();
 
         Ok(())
-    })?;
+    })??;
 
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
     Ok(())
 }
 
@@ -2773,9 +2747,9 @@ fn update_extent_at_index<D: BlockDevice>(
         }
 
         Ok(())
-    })?;
+    })??;
 
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
     Ok(())
 }
 

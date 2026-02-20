@@ -7,7 +7,6 @@ use crate::{
     superblock::Superblock,
     types::ext4_group_desc,
 };
-use alloc::vec;
 
 use super::{BlockGroup, get_block_group_desc_location};
 
@@ -68,7 +67,7 @@ impl BlockGroup {
     pub fn set_block_bitmap(&mut self, sb: &Superblock, block: u64) {
         self.inner.block_bitmap_lo = (block as u32).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.block_bitmap_hi = ((block >> 32) as u32).to_le();
         }
     }
@@ -84,7 +83,7 @@ impl BlockGroup {
     pub fn set_inode_bitmap(&mut self, sb: &Superblock, block: u64) {
         self.inner.inode_bitmap_lo = (block as u32).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.inode_bitmap_hi = ((block >> 32) as u32).to_le();
         }
     }
@@ -100,7 +99,7 @@ impl BlockGroup {
     pub fn set_inode_table_first_block(&mut self, sb: &Superblock, block: u64) {
         self.inner.inode_table_lo = (block as u32).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.inode_table_hi = ((block >> 32) as u32).to_le();
         }
     }
@@ -116,7 +115,7 @@ impl BlockGroup {
     pub fn set_free_blocks_count(&mut self, sb: &Superblock, count: u32) {
         self.inner.free_blocks_count_lo = (count as u16).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.free_blocks_count_hi = ((count >> 16) as u16).to_le();
         }
     }
@@ -132,7 +131,7 @@ impl BlockGroup {
     pub fn set_free_inodes_count(&mut self, sb: &Superblock, count: u32) {
         self.inner.free_inodes_count_lo = (count as u16).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.free_inodes_count_hi = ((count >> 16) as u16).to_le();
         }
     }
@@ -148,7 +147,7 @@ impl BlockGroup {
     pub fn set_used_dirs_count(&mut self, sb: &Superblock, count: u32) {
         self.inner.used_dirs_count_lo = (count as u16).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.used_dirs_count_hi = ((count >> 16) as u16).to_le();
         }
     }
@@ -164,7 +163,7 @@ impl BlockGroup {
     pub fn set_itable_unused(&mut self, sb: &Superblock, count: u32) {
         self.inner.itable_unused_lo = (count as u16).to_le();
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             self.inner.itable_unused_hi = ((count >> 16) as u16).to_le();
         }
     }

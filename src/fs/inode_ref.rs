@@ -834,7 +834,7 @@ impl<'a, D: BlockDevice> InodeRef<'a, D> {
         let block_size = self.sb.block_size();
 
         // 计算当前文件占用的块数（向上取整）
-        let blocks = ((file_size + block_size as u64 - 1) / block_size as u64) as u32;
+        let blocks = file_size.div_ceil(block_size as u64) as u32;
 
         Ok(blocks)
     }

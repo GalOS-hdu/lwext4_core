@@ -201,8 +201,7 @@ pub fn ext4_idx_store_pblock(idx: &mut ext4_extent_idx, pblock: u64) {
     // 🔧 验证输入的块号是否超出 48-bit 限制
     if pblock > 0xFFFFFFFFFFFF {
         log::error!(
-            "[ext4_idx_store_pblock] Invalid pblock: {:#x} (exceeds 48-bit limit)",
-            pblock
+            "[ext4_idx_store_pblock] Invalid pblock: {pblock:#x} (exceeds 48-bit limit)"
         );
     }
 

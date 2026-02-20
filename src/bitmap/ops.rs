@@ -98,13 +98,7 @@ pub fn find_first_zero(bitmap: &[u8], start: u32, end: u32) -> Option<u32> {
     let max_bits = (bitmap.len() * 8) as u32;
     let end = end.min(max_bits);
 
-    for i in start..end {
-        if !test_bit(bitmap, i) {
-            return Some(i);
-        }
-    }
-
-    None
+    (start..end).find(|&i| !test_bit(bitmap, i))
 }
 
 /// 在位图中查找第一个被设置的位（值为 1 的位）
@@ -124,13 +118,7 @@ pub fn find_first_one(bitmap: &[u8], start: u32, end: u32) -> Option<u32> {
     let max_bits = (bitmap.len() * 8) as u32;
     let end = end.min(max_bits);
 
-    for i in start..end {
-        if test_bit(bitmap, i) {
-            return Some(i);
-        }
-    }
-
-    None
+    (start..end).find(|&i| test_bit(bitmap, i))
 }
 
 /// 统计位图中从 start 到 end 范围内被设置的位数

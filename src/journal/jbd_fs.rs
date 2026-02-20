@@ -6,7 +6,7 @@ use super::{recovery, types::*, JournalError};
 use crate::{
     block::{Block, BlockDev, BlockDevice},
     consts::*,
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
     fs::InodeRef,
     superblock::Superblock,
 };

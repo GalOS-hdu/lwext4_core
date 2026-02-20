@@ -22,15 +22,14 @@
 //! - `ext4_ext_can_append()` - 检查是否可以向后合并
 
 use crate::{
-    block::{Block, BlockDevice},
-    consts::*,
+    block::BlockDevice,
     error::Result,
     fs::InodeRef,
     types::ext4_extent,
 };
 
 use super::{
-    helpers::{ext4_ext_pblock, ext4_ext_store_pblock},
+    helpers::ext4_ext_store_pblock,
     unwritten::is_unwritten,
     write::ExtentNodeType,
 };
@@ -234,9 +233,11 @@ pub fn merge_extents(
     match direction {
         MergeDirection::None => {
             // 不合并，直接插入
-            let mut new_extent = ext4_extent::default();
-            new_extent.block = new_lblock.to_le();
-            new_extent.len = (new_len as u16).to_le();
+            let mut new_extent = ext4_extent {
+                block: new_lblock.to_le(),
+                len: (new_len as u16).to_le(),
+                ..ext4_extent::default()
+            };
             ext4_ext_store_pblock(&mut new_extent, new_pblock);
 
             // 设置 unwritten 标志

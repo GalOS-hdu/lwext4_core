@@ -144,7 +144,7 @@ impl core::fmt::Display for JournalError {
             JournalError::NoJournalInode => write!(f, "Journal inode not found"),
             JournalError::InvalidSuperblock => write!(f, "Invalid journal superblock"),
             JournalError::UnsupportedFeature(feat) => {
-                write!(f, "Unsupported journal feature: 0x{:08x}", feat)
+                write!(f, "Unsupported journal feature: 0x{feat:08x}")
             }
             JournalError::RecoveryFailed => write!(f, "Journal recovery failed"),
             JournalError::NoSpace => write!(f, "Journal has no space"),

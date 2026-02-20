@@ -60,9 +60,8 @@ impl<D: BlockDevice> BlockDev<D> {
                     Err(e) if e.kind() == crate::error::ErrorKind::NoSpace => {
                         // 先获取capacity，然后释放借用
                         let flush_count = cache.capacity() / 4;
-                        drop(cache); // 显式释放借用
                         // prepare for contest replace warn with info
-                        log::info!("[read_block] Cache full, flushing {} blocks", flush_count);
+                        log::info!("[read_block] Cache full, flushing {flush_count} blocks");
                         self.flush_some_dirty_blocks(flush_count)?;
                         // 重新借用并重试
                         self.bcache.as_mut().unwrap().alloc(lba)?
@@ -125,9 +124,8 @@ impl<D: BlockDevice> BlockDev<D> {
                         Ok(result) => result,
                         Err(e) if e.kind() == crate::error::ErrorKind::NoSpace => {
                             let flush_count = cache.capacity() / 4;
-                            drop(cache); // 显式释放借用
                             // prepare for contest replace warn with info
-                            log::info!("[write_block] Cache full, flushing {} blocks", flush_count);
+                            log::info!("[write_block] Cache full, flushing {flush_count} blocks");
                             self.flush_some_dirty_blocks(flush_count)?;
                             // 重新获取cache并分配
                             let cache = self.bcache.as_mut().unwrap();
@@ -186,7 +184,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
         // 计算需要读取的块数
         let total_size = block_offset + len;
-        let block_count = ((total_size as u64 + block_size - 1) / block_size) as usize;
+        let block_count = (total_size as u64).div_ceil(block_size) as usize;
 
         // 分配临时缓冲区
         let mut temp = vec![0u8; block_count * block_size as usize];
@@ -231,7 +229,7 @@ impl<D: BlockDevice> BlockDev<D> {
         let block_offset = (offset % block_size) as usize;
 
         let total_size = block_offset + len;
-        let block_count = ((total_size as u64 + block_size - 1) / block_size) as usize;
+        let block_count = (total_size as u64).div_ceil(block_size) as usize;
 
         let mut temp = vec![0u8; block_count * block_size as usize];
 
@@ -289,7 +287,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
         let dirty_count = dirty_blocks.len();
         if dirty_count > 0 {
-            log::debug!("[BlockDev] Flushing {} dirty blocks", dirty_count);
+            log::debug!("[BlockDev] Flushing {dirty_count} dirty blocks");
 
             // 🚀 性能优化：预分配缓冲区复用（避免每次循环分配新 Vec）
             let mut flush_buf = vec![0u8; block_size as usize];
@@ -314,7 +312,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
                 // 进行I/O操作（此时没有cache借用）
                 let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
-                let count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
+                let count = (block_size as usize).div_ceil(sector_size as usize);
                 self.device_mut().write_blocks(pba, count as u32, &flush_buf)?;
 
                 // 标记为clean
@@ -323,7 +321,7 @@ impl<D: BlockDevice> BlockDev<D> {
                 }
             }
 
-            log::debug!("[BlockDev] Flushed {} blocks successfully", dirty_count);
+            log::debug!("[BlockDev] Flushed {dirty_count} blocks successfully");
         }
 
         // 第二层：调用设备的硬件刷新（如 fsync）

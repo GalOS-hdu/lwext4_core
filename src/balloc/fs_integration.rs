@@ -6,7 +6,7 @@
 use crate::{
     block::{BlockDev, BlockDevice},
     error::Result,
-    fs::{BlockGroupRef, InodeRef},
+    fs::InodeRef,
     superblock::Superblock,
 };
 

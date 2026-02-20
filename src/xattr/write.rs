@@ -16,8 +16,8 @@ use super::search::XattrSearch;
 /// 对应 C 宏 `EXT4_XATTR_LEN(name_len)`
 #[inline]
 fn entry_len(name_len: usize) -> usize {
-    ((name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
-        & !(EXT4_XATTR_ROUND as usize))
+    (name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
+        & !(EXT4_XATTR_ROUND as usize)
 }
 
 /// 计算 value 的对齐后大小
@@ -25,7 +25,7 @@ fn entry_len(name_len: usize) -> usize {
 /// 对应 C 宏 `EXT4_XATTR_SIZE(value_len)`
 #[inline]
 fn value_size(value_len: usize) -> usize {
-    ((value_len + EXT4_XATTR_ROUND as usize) & !(EXT4_XATTR_ROUND as usize))
+    (value_len + EXT4_XATTR_ROUND as usize) & !(EXT4_XATTR_ROUND as usize)
 }
 
 /// 在 xattr 数据区中设置 entry（核心内存操作）
@@ -156,7 +156,7 @@ pub fn set_entry_in_memory(
     }
 
     // 6. 删除旧 value（如果 entry 已存在）
-    if let Some((entry_offset, old_value_offset, old_value_size)) = found {
+    if let Some((_entry_offset, old_value_offset, old_value_size)) = found {
         if old_value_offset > 0 && old_value_size > 0 {
             let old_value_size_aligned = value_size(old_value_size as usize);
             let first_value = min_offs;
@@ -261,13 +261,14 @@ pub fn set_entry_in_memory(
                 .copy_from_slice(entry_bytes_src);
         } else {
             // 插入新 entry（在 last_entry_offset 位置）
-            let mut new_entry = ext4_xattr_entry::default();
-            new_entry.e_name_len = name_len as u8;
-            new_entry.e_name_index = name_index;
-            new_entry.e_value_offs = (value_offs as u16).to_le();
-            new_entry.e_value_block = 0;
-            new_entry.e_value_size = (new_value_len as u32).to_le();
-            new_entry.e_hash = 0; // 稍后计算
+            let new_entry = ext4_xattr_entry {
+                e_name_len: name_len as u8,
+                e_name_index: name_index,
+                e_value_offs: (value_offs as u16).to_le(),
+                e_value_block: 0,
+                e_value_size: (new_value_len as u32).to_le(),
+                e_hash: 0, // 稍后计算
+            };
 
             // 写入 entry
             let entry_bytes = unsafe {

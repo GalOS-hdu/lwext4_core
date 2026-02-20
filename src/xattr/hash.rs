@@ -45,8 +45,8 @@ pub fn compute_entry_hash(
     if entry.e_value_block == 0 && entry.value_size() != 0 {
         if let Some(value) = value_data {
             // 值按 4 字节对齐后处理
-            let value_size_aligned = ((entry.value_size() as usize + EXT4_XATTR_ROUND as usize)
-                >> EXT4_XATTR_PAD_BITS) as usize;
+            let value_size_aligned = (entry.value_size() as usize + EXT4_XATTR_ROUND as usize)
+                >> EXT4_XATTR_PAD_BITS;
 
             // 每次处理 4 字节
             for chunk_idx in 0..value_size_aligned {

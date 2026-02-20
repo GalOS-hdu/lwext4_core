@@ -5,7 +5,7 @@
 use super::{checksum, types::*, JbdFs, JbdJournal, JbdTrans, JournalError};
 use crate::{
     block::{Block, BlockDev, BlockDevice},
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
     superblock::Superblock,
 };
 use alloc::vec::Vec;
@@ -108,7 +108,7 @@ fn calculate_descriptor_blocks(data_blocks: u32, block_size: u32) -> u32 {
     let header_size = core::mem::size_of::<jbd_bhdr>() as u32;
     let tags_per_block = (block_size - header_size) / tag_size;
 
-    (data_blocks + tags_per_block - 1) / tags_per_block
+    data_blocks.div_ceil(tags_per_block)
 }
 
 /// 写入 descriptor blocks 和数据块
@@ -125,9 +125,9 @@ fn write_descriptor_and_data_blocks<D: BlockDevice>(
     uuid: &[u8; 16],
 ) -> Result<u32> {
     let block_size = jbd_fs.block_size();
-    let tag_size = core::mem::size_of::<jbd_block_tag>() as usize;
-    let header_size = core::mem::size_of::<jbd_bhdr>() as usize;
-    let tail_size = core::mem::size_of::<jbd_block_tail>() as usize;
+    let tag_size = core::mem::size_of::<jbd_block_tag>();
+    let header_size = core::mem::size_of::<jbd_bhdr>();
+    let tail_size = core::mem::size_of::<jbd_block_tail>();
 
     // 检查是否启用了校验和特性
     let has_csum = jbd_fs.has_incompat_feature(JBD_FEATURE_INCOMPAT_CSUM_V2 | JBD_FEATURE_INCOMPAT_CSUM_V3);
@@ -164,7 +164,7 @@ fn write_descriptor_and_data_blocks<D: BlockDevice>(
                 for (i, buf) in chunk.iter().enumerate() {
                     let is_last = (i == chunk.len() - 1) && (chunk_idx == buffers.chunks(tags_per_block).count() - 1);
 
-                    let mut tag = jbd_block_tag {
+                    let tag = jbd_block_tag {
                         blocknr: (buf.fs_lba() as u32).to_be(),
                         checksum: 0,
                         flags: if is_last { JBD_FLAG_LAST_TAG.to_be() } else { 0 },
@@ -226,7 +226,7 @@ fn write_descriptor_and_data_blocks<D: BlockDevice>(
 /// 写入 commit block
 fn write_commit_block<D: BlockDevice>(
     jbd_fs: &JbdFs,
-    trans: &JbdTrans,
+    _trans: &JbdTrans,
     bdev: &mut BlockDev<D>,
     superblock: &mut Superblock,
     commit_jblock: u32,
@@ -325,7 +325,7 @@ fn write_revoke_block<D: BlockDevice>(
 
         // 写入所有撤销记录
         let mut offset = core::mem::size_of::<jbd_revoke_header>();
-        for (lba, _revoke_rec) in &trans.revoke_root {
+        for lba in trans.revoke_root.keys() {
             unsafe {
                 core::ptr::write_unaligned(
                     data.as_mut_ptr().add(offset) as *mut u64,

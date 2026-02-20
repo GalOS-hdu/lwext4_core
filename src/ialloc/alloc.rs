@@ -3,7 +3,6 @@
 use crate::{
     bitmap::*,
     block::{Block, BlockDev, BlockDevice},
-    block_group::BlockGroup,
     error::{Error, ErrorKind, Result},
     fs::BlockGroupRef,
     superblock::Superblock,
@@ -69,7 +68,7 @@ impl InodeAllocator {
             }
 
             // 第一步：读取块组信息
-            let (free_inodes, used_dirs, bmp_blk_addr, bg_copy) = {
+            let (free_inodes, _used_dirs, bmp_blk_addr, bg_copy) = {
                 let mut bg_ref = BlockGroupRef::get(bdev, sb, bgid)?;
                 let free = bg_ref.free_inodes_count()?;
                 let dirs = bg_ref.used_dirs_count()?;
@@ -101,7 +100,7 @@ impl InodeAllocator {
                         };
 
                         // 找到空闲 inode，设置位图中的位
-                        if let Err(_) = set_bit(bitmap_data, idx_in_bg) {
+                        if set_bit(bitmap_data, idx_in_bg).is_err() {
                             return None;
                         }
 
@@ -148,9 +147,7 @@ impl InodeAllocator {
                 }
 
                 // 更新 superblock
-                if sb_free_inodes > 0 {
-                    sb_free_inodes -= 1;
-                }
+                sb_free_inodes = sb_free_inodes.saturating_sub(1);
                 sb.set_free_inodes_count(sb_free_inodes);
                 sb.write(bdev)?;
 

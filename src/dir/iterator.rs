@@ -12,11 +12,10 @@
 //! 4. **符合 lwext4 设计** - 与 C 实现的逻辑保持一致
 
 use crate::{
-    block::{Block, BlockDev, BlockDevice},
+    block::{Block, BlockDevice},
     consts::*,
     error::{Error, ErrorKind, Result},
     fs::InodeRef,
-    superblock::Superblock,
     types::ext4_dir_entry,
 };
 use alloc::string::String;

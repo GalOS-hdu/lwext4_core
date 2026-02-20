@@ -444,7 +444,7 @@ impl Superblock {
         }
 
         let dsc_per_block = self.block_size() / self.group_desc_size() as u32;
-        let db_count = (self.block_group_count() + dsc_per_block - 1) / dsc_per_block;
+        let db_count = self.block_group_count().div_ceil(dsc_per_block);
 
         // 如果启用了 META_BG，返回 first_meta_bg
         if self.has_incompat_feature(EXT4_FEATURE_INCOMPAT_META_BG) {

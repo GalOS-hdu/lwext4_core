@@ -84,8 +84,7 @@ pub fn grow_tree_depth<D: BlockDevice>(
     let new_depth = old_depth + 1;
 
     log::debug!(
-        "[GROW_TREE] Starting grow_tree_depth: old_depth={}, new_depth={}, is_leaf={}",
-        old_depth, new_depth, is_leaf
+        "[GROW_TREE] Starting grow_tree_depth: old_depth={old_depth}, new_depth={new_depth}, is_leaf={is_leaf}"
     );
 
     // 2. 分配新的物理块
@@ -96,14 +95,13 @@ pub fn grow_tree_depth<D: BlockDevice>(
     )?;
 
     log::debug!(
-        "[GROW_TREE] Allocated new block: 0x{:x} (decimal: {})",
-        new_block, new_block
+        "[GROW_TREE] Allocated new block: 0x{new_block:x} (decimal: {new_block})"
     );
 
     // 3. 将当前根节点内容复制到新块
     if is_leaf {
         // 根节点是叶子，复制 extent 数组
-        log::debug!("[GROW_TREE] Copying extents to new block 0x{:x}", new_block);
+        log::debug!("[GROW_TREE] Copying extents to new block 0x{new_block:x}");
         copy_extents_to_new_block(
             inode_ref,
             new_block,
@@ -112,7 +110,7 @@ pub fn grow_tree_depth<D: BlockDevice>(
         )?;
     } else {
         // 根节点是索引节点，复制 index 数组
-        log::debug!("[GROW_TREE] Copying indices to new block 0x{:x}", new_block);
+        log::debug!("[GROW_TREE] Copying indices to new block 0x{new_block:x}");
         copy_indices_to_new_block(
             inode_ref,
             new_block,
@@ -125,8 +123,7 @@ pub fn grow_tree_depth<D: BlockDevice>(
     // 4. 在 inode 中创建新的根节点
     // 新根节点是索引节点，只包含一个 index 指向刚才分配的块
     log::debug!(
-        "[GROW_TREE] Creating new root in inode: depth={}, pointing to block 0x{:x}",
-        new_depth, new_block
+        "[GROW_TREE] Creating new root in inode: depth={new_depth}, pointing to block 0x{new_block:x}"
     );
     create_new_root_in_inode(
         inode_ref,
@@ -141,7 +138,7 @@ pub fn grow_tree_depth<D: BlockDevice>(
         "[GROW_TREE] Force writeback inode after grow_tree_depth (critical for consistency)"
     );
     inode_ref.force_writeback().map_err(|e| {
-        log::error!("[GROW_TREE] Failed to force writeback after grow: {:?}", e);
+        log::error!("[GROW_TREE] Failed to force writeback after grow: {e:?}");
         e
     })?;
 
@@ -337,7 +334,7 @@ fn create_new_root_in_inode<D: BlockDevice>(
         log::debug!("[GROW_TREE] inode.blocks[0..28]: {:02x?}", &data[..28]);
     })?;
 
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
 
     Ok(())
 }

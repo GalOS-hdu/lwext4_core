@@ -117,18 +117,16 @@ impl<'a, D: BlockDevice> DirIterator<'a, D> {
             let block_size = self.sb.block_size() as usize;
 
             // 如果当前块已读完，加载下一个块
-            if self.offset_in_block >= block_size {
-                if !self.load_next_block()? {
+            if self.offset_in_block >= block_size
+                && !self.load_next_block()? {
                     return Ok(None);
                 }
-            }
 
             // 如果是第一次，加载第一个块
-            if self.current_block == 0 && self.offset_in_block == 0 {
-                if !self.load_next_block()? {
+            if self.current_block == 0 && self.offset_in_block == 0
+                && !self.load_next_block()? {
                     return Ok(None);
                 }
-            }
 
             // 检查是否还有足够的数据读取目录项头部
             if self.offset_in_block + EXT4_DIR_ENTRY_MIN_LEN > block_size {
@@ -138,9 +136,8 @@ impl<'a, D: BlockDevice> DirIterator<'a, D> {
             }
 
             // 读取目录项
-            let entry_ptr = unsafe {
-                self.block_data[self.offset_in_block..].as_ptr() as *const ext4_dir_entry
-            };
+            let entry_ptr =
+                self.block_data[self.offset_in_block..].as_ptr() as *const ext4_dir_entry;
             let entry = unsafe { core::ptr::read_unaligned(entry_ptr) };
 
             let inode = u32::from_le(entry.inode);

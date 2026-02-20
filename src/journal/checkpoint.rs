@@ -2,7 +2,7 @@
 //!
 //! 对应 lwext4 的 journal checkpoint 功能
 
-use super::{types::*, JbdFs, JbdJournal, JbdTrans, JournalError};
+use super::{types::*, JbdFs, JbdJournal, JbdTrans};
 use crate::{
     block::{Block, BlockDev, BlockDevice},
     error::{Error, ErrorKind, Result},
@@ -49,7 +49,7 @@ pub fn do_checkpoint<D: BlockDevice>(
     // 遍历检查点队列
     loop {
         // 检查是否还有事务需要处理
-        let has_trans = jbd_journal.cp_queue.len() > 0;
+        let has_trans = !jbd_journal.cp_queue.is_empty();
         if !has_trans {
             break;
         }
@@ -201,7 +201,7 @@ fn calculate_descriptor_blocks_count(data_blocks: u32, block_size: u32) -> u32 {
     if data_blocks == 0 {
         0
     } else {
-        (data_blocks + tags_per_block - 1) / tags_per_block
+        data_blocks.div_ceil(tags_per_block)
     }
 }
 

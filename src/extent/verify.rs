@@ -8,7 +8,6 @@
 //! - 条目数量合理性检查
 //! - CRC32C 校验和验证（如果启用）
 
-use alloc::vec::Vec;
 
 use crate::{
     error::{Error, ErrorKind, Result},
@@ -80,7 +79,7 @@ pub fn check_extent_block(
     inode_gen: u32,
     block_data: &[u8],
     expected_depth: u16,
-    pblock: u64,
+    _pblock: u64,
 ) -> Result<()> {
     // 解析 extent header
     let header_ptr = block_data.as_ptr() as *const ext4_extent_header;

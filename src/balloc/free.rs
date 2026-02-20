@@ -5,7 +5,6 @@
 use crate::{
     bitmap::*,
     block::{Block, BlockDev, BlockDevice},
-    block_group::BlockGroup,
     error::{Error, ErrorKind, Result},
     fs::BlockGroupRef,
     superblock::Superblock,

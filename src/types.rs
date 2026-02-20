@@ -160,7 +160,7 @@ impl ext4_sblock {
     pub fn block_group_count(&self) -> u32 {
         let blocks_count = self.blocks_count();
         let blocks_per_group = u32::from_le(self.blocks_per_group) as u64;
-        ((blocks_count + blocks_per_group - 1) / blocks_per_group) as u32
+        blocks_count.div_ceil(blocks_per_group) as u32
     }
 
     /// 验证魔数

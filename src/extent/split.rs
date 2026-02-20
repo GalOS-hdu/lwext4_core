@@ -73,7 +73,7 @@ pub fn split_extent_node<D: BlockDevice>(
     let node = &path.nodes[at];
     let is_leaf = node.node_type == ExtentNodeType::Leaf
                   || node.node_type == ExtentNodeType::Root && node.header.is_leaf();
-    let depth = node.depth;
+    let _depth = node.depth;
     let entries = node.header.entries_count();
 
     if entries < 2 {
@@ -136,7 +136,7 @@ fn split_leaf_node<D: BlockDevice>(
 ) -> Result<()> {
     let block_size = sb.block_size();
     let node = &path.nodes[at];
-    let depth = node.depth;
+    let _depth = node.depth;
 
     // 读取当前节点数据
     let (old_extents, old_header) = if node.node_type == ExtentNodeType::Root {
@@ -347,8 +347,7 @@ fn insert_parent_index<D: BlockDevice>(
         // 我们还需要在新root中插入第二个索引，指向分裂出的右半部分（physical_block）
         // 新root就是parent_at=0
         log::debug!(
-            "[insert_parent_index] After grow_tree_depth, inserting second index: first_block={}, physical_block={:#x}",
-            first_block, physical_block
+            "[insert_parent_index] After grow_tree_depth, inserting second index: first_block={first_block}, physical_block={physical_block:#x}"
         );
         0
     } else {
@@ -656,9 +655,9 @@ pub(super) fn write_extents_to_inode<D: BlockDevice>(
         }
 
         Ok(())
-    })?;
+    })??;
 
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
     Ok(())
 }
 
@@ -729,9 +728,9 @@ fn write_indices_to_inode<D: BlockDevice>(
         }
 
         Ok(())
-    })?;
+    })??;
 
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
     Ok(())
 }
 

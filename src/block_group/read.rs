@@ -185,7 +185,7 @@ impl BlockGroup {
     pub fn get_block_bitmap(&self, sb: &Superblock) -> u64 {
         let mut v = u32::from_le(self.inner.block_bitmap_lo) as u64;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u32::from_le(self.inner.block_bitmap_hi) as u64) << 32;
         }
 
@@ -202,7 +202,7 @@ impl BlockGroup {
     pub fn get_inode_bitmap(&self, sb: &Superblock) -> u64 {
         let mut v = u32::from_le(self.inner.inode_bitmap_lo) as u64;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u32::from_le(self.inner.inode_bitmap_hi) as u64) << 32;
         }
 
@@ -219,7 +219,7 @@ impl BlockGroup {
     pub fn get_inode_table_first_block(&self, sb: &Superblock) -> u64 {
         let mut v = u32::from_le(self.inner.inode_table_lo) as u64;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u32::from_le(self.inner.inode_table_hi) as u64) << 32;
         }
 
@@ -236,7 +236,7 @@ impl BlockGroup {
     pub fn get_free_blocks_count(&self, sb: &Superblock) -> u32 {
         let mut v = u16::from_le(self.inner.free_blocks_count_lo) as u32;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u16::from_le(self.inner.free_blocks_count_hi) as u32) << 16;
         }
 
@@ -253,7 +253,7 @@ impl BlockGroup {
     pub fn get_free_inodes_count(&self, sb: &Superblock) -> u32 {
         let mut v = u16::from_le(self.inner.free_inodes_count_lo) as u32;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u16::from_le(self.inner.free_inodes_count_hi) as u32) << 16;
         }
 
@@ -270,7 +270,7 @@ impl BlockGroup {
     pub fn get_used_dirs_count(&self, sb: &Superblock) -> u32 {
         let mut v = u16::from_le(self.inner.used_dirs_count_lo) as u32;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u16::from_le(self.inner.used_dirs_count_hi) as u32) << 16;
         }
 
@@ -287,7 +287,7 @@ impl BlockGroup {
     pub fn get_itable_unused(&self, sb: &Superblock) -> u32 {
         let mut v = u16::from_le(self.inner.itable_unused_lo) as u32;
 
-        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+        if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
             v |= (u16::from_le(self.inner.itable_unused_hi) as u32) << 16;
         }
 

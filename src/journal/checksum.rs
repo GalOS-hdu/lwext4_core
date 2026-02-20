@@ -3,7 +3,6 @@
 //! 对应 lwext4 的 journal checksum 功能
 
 use super::types::*;
-use crate::error::Result;
 
 /// 计算 journal block 的 CRC32C 校验和
 ///

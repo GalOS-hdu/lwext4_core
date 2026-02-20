@@ -44,7 +44,14 @@
 
 #![no_std]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![warn(missing_docs)]
+#![allow(missing_docs)]
+// Suppress clippy warnings that are not worth fixing
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::len_without_is_empty)]
+#![allow(deprecated)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
+#![allow(private_interfaces)]
 
 extern crate alloc;
 

@@ -22,16 +22,14 @@ use crate::{
 };
 
 use super::{
-    helpers::{ext4_ext_pblock, ext4_ext_store_pblock},
     split::{read_extents_from_block, read_extents_from_inode,
             write_extents_to_block, write_extents_to_inode},
     unwritten::{get_actual_len, get_pblock, is_unwritten,
                 mark_initialized, mark_unwritten, store_pblock,
                 EXT4_EXT_MARK_UNWRIT1, EXT4_EXT_MARK_UNWRIT2},
-    write::{ExtentNodeType, ExtentPath, ExtentWriter},
+    write::{ExtentNodeType, ExtentWriter},
 };
 
-use alloc::vec::Vec;
 
 /// 在多层树中分裂 extent
 ///
@@ -80,7 +78,7 @@ pub fn split_extent_at_multilevel<D: BlockDevice>(
 
     let leaf_block_addr = leaf.block_addr;
     let leaf_node_type = leaf.node_type;
-    let leaf_depth = leaf.depth;
+    let _leaf_depth = leaf.depth;
 
     // 3. 在叶子节点中查找 extent
     let (extent_idx, extent_info) = find_extent_in_leaf(
@@ -91,7 +89,7 @@ pub fn split_extent_at_multilevel<D: BlockDevice>(
         logical_block,
     )?;
 
-    let (ee_block, ee_len, ee_start, _was_unwritten) = extent_info;
+    let (ee_block, ee_len, _ee_start, _was_unwritten) = extent_info;
 
     // 验证分裂点在 extent 范围内
     if logical_block < ee_block || logical_block >= ee_block + ee_len as u32 {
@@ -206,7 +204,7 @@ fn change_extent_status<D: BlockDevice>(
     inode_ref: &mut InodeRef<D>,
     block_addr: u64,
     node_type: ExtentNodeType,
-    block_size: u32,
+    _block_size: u32,
     extent_idx: usize,
     split_flag: u32,
 ) -> Result<()> {
@@ -236,7 +234,7 @@ fn change_extent_status<D: BlockDevice>(
             Ok(())
         })??;
 
-        inode_ref.mark_dirty();
+        inode_ref.mark_dirty()?;
     } else {
         let mut block = Block::get(inode_ref.bdev(), block_addr)?;
 
@@ -312,9 +310,11 @@ fn split_extent_in_leaf<D: BlockDevice>(
     extents[extent_idx] = first_extent;
 
     // 创建新 extent（第二部分）
-    let mut second_extent = ext4_extent::default();
-    second_extent.block = split_at.to_le();
-    second_extent.len = (second_len as u16).to_le();
+    let mut second_extent = ext4_extent {
+        block: split_at.to_le(),
+        len: (second_len as u16).to_le(),
+        ..ext4_extent::default()
+    };
     store_pblock(&mut second_extent, ee_start + first_len as u64);
 
     if split_flag & EXT4_EXT_MARK_UNWRIT2 != 0 {
@@ -381,7 +381,7 @@ pub fn convert_to_initialized_multilevel<D: BlockDevice>(
         })?;
 
         // 查找 extent
-        let (extent_idx, (ee_block, ee_len, ee_start, was_unwritten)) =
+        let (extent_idx, (ee_block, ee_len, _ee_start, was_unwritten)) =
             find_extent_in_leaf(
                 inode_ref,
                 leaf.block_addr,

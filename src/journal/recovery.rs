@@ -2,10 +2,10 @@
 //!
 //! 对应 lwext4 的 journal recovery 功能
 
-use super::{checksum, types::*, JbdFs, JournalError};
+use super::{types::*, JbdFs};
 use crate::{
     block::{Block, BlockDev, BlockDevice},
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
     superblock::Superblock,
 };
 use alloc::vec::Vec;
@@ -156,7 +156,7 @@ fn scan_journal<D: BlockDevice>(
 
         // 根据块类型处理
         match blocktype {
-            JBD_BLOCKTYPE_DESCRIPTOR => {
+            JBD_DESCRIPTOR_BLOCK => {
                 // 描述符块，包含事务的块映射
                 let trans_info = scan_descriptor_block(
                     jbd_fs,
@@ -169,13 +169,13 @@ fn scan_journal<D: BlockDevice>(
                 transactions.push(trans_info.0);
                 current_block = trans_info.1;
             }
-            JBD_BLOCKTYPE_COMMIT => {
+            JBD_COMMIT_BLOCK => {
                 // 提交块，标志事务完成
                 // 继续扫描下一个块
                 current_block = next_block(current_block, first_block, max_len);
                 sequence += 1;
             }
-            JBD_BLOCKTYPE_REVOKE => {
+            JBD_REVOKE_BLOCK => {
                 // 撤销块，跳过（恢复时不需要处理）
                 current_block = next_block(current_block, first_block, max_len);
             }

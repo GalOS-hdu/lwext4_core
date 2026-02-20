@@ -139,8 +139,8 @@ pub fn validate_block(sb: &Superblock, block_data: &[u8]) -> Result<()> {
 
         // 检查下一个 entry 的位置
         let name_len = entry.e_name_len as usize;
-        let entry_len = ((name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
-            & !(EXT4_XATTR_ROUND as usize));
+        let entry_len = (name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
+            & !(EXT4_XATTR_ROUND as usize);
 
         let next_offset = entry_offset + entry_len;
 
@@ -311,8 +311,8 @@ pub fn list_block_xattr(
         }
 
         // 移动到下一个 entry
-        let entry_len = ((name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
-            & !(EXT4_XATTR_ROUND as usize));
+        let entry_len = (name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
+            & !(EXT4_XATTR_ROUND as usize);
         entry_offset += entry_len;
     }
 

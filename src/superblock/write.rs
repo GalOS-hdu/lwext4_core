@@ -6,7 +6,6 @@ use crate::{
     error::Result,
     types::ext4_sblock,
 };
-use alloc::vec;
 
 /// 将 superblock 写回块设备（仅主 superblock）
 ///

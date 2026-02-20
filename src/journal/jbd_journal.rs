@@ -3,7 +3,6 @@
 //! 对应 lwext4 的 `struct jbd_journal`
 
 use super::{JbdTrans, jbd_trans::JbdBlockRec};
-use crate::error::Result;
 use alloc::collections::{BTreeMap, VecDeque};
 
 /// JBD Journal（日志管理器）

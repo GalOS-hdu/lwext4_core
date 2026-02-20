@@ -170,11 +170,7 @@ impl<'a> XattrSearch<'a> {
         let entries_end = last_entry_offset + size_of::<ext4_xattr_entry>();
 
         // 可用空间 = 最小值偏移 - entry 区域末尾
-        if min_value_offset > entries_end {
-            min_value_offset - entries_end
-        } else {
-            0
-        }
+        min_value_offset.saturating_sub(entries_end)
     }
 }
 
@@ -246,8 +242,8 @@ fn read_entry(data: &[u8], offset: usize) -> ext4_xattr_entry {
 #[inline]
 fn next_entry_offset(current_offset: usize, name_len: usize) -> usize {
     // EXT4_XATTR_LEN = (name_len + ROUND + sizeof(entry)) & ~ROUND
-    let len = ((name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
-        & !(EXT4_XATTR_ROUND as usize));
+    let len = (name_len + EXT4_XATTR_ROUND as usize + size_of::<ext4_xattr_entry>())
+        & !(EXT4_XATTR_ROUND as usize);
     current_offset + len
 }
 

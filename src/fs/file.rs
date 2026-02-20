@@ -3,7 +3,6 @@
 use crate::{
     block::{BlockDev, BlockDevice},
     error::{Error, ErrorKind, Result},
-    extent::ExtentTree,
     superblock::Superblock,
 };
 

@@ -35,7 +35,7 @@
 //! 对应 lwext4 的 ext4_dir_idx.c
 
 use crate::{
-    block::{Block, BlockDev, BlockDevice},
+    block::{Block, BlockDevice},
     consts::*,
     error::{Error, ErrorKind, Result},
     fs::InodeRef,
@@ -236,7 +236,7 @@ pub fn get_leaf_block<D: BlockDevice>(
 ) -> Result<u32> {
     // Start from root block (block 0)
     let mut current_block_idx = 0_u32;
-    let block_size = inode_ref.sb().block_size();
+    let _block_size = inode_ref.sb().block_size();
 
     // Read root to get indirect levels
     let root_block_addr = inode_ref.get_inode_dblk_idx(current_block_idx, false)?;
@@ -281,9 +281,9 @@ pub fn get_leaf_block<D: BlockDevice>(
                 (entries, count, limit)
             } else {
                 // Non-root index node
-                let fake_entry = unsafe { &*(data.as_ptr() as *const crate::types::ext4_fake_dir_entry) };
+                let _fake_entry = unsafe { &*(data.as_ptr() as *const crate::types::ext4_fake_dir_entry) };
                 let climit = unsafe {
-                    &*((data.as_ptr() as *const u8)
+                    &*(data.as_ptr()
                         .add(core::mem::size_of::<crate::types::ext4_fake_dir_entry>())
                         as *const ext4_dir_idx_climit)
                 };
@@ -291,7 +291,7 @@ pub fn get_leaf_block<D: BlockDevice>(
                 let limit = climit.limit();
 
                 let entries_ptr = unsafe {
-                    (data.as_ptr() as *const u8)
+                    data.as_ptr()
                         .add(core::mem::size_of::<crate::types::ext4_fake_dir_entry>())
                         .add(core::mem::size_of::<ext4_dir_idx_climit>())
                         as *const ext4_dir_idx_entry
@@ -370,7 +370,7 @@ pub fn get_leaf_with_path<D: BlockDevice>(
 ) -> Result<HTreePath> {
     let mut index_blocks = Vec::new();
     let mut current_block_idx = 0_u32;
-    let block_size = inode_ref.sb().block_size();
+    let _block_size = inode_ref.sb().block_size();
 
     // Read root to get indirect levels
     let root_block_addr = inode_ref.get_inode_dblk_idx(current_block_idx, false)?;
@@ -414,9 +414,9 @@ pub fn get_leaf_with_path<D: BlockDevice>(
                 (entries, count, limit)
             } else {
                 // Non-root index node
-                let fake_entry = unsafe { &*(data.as_ptr() as *const crate::types::ext4_fake_dir_entry) };
+                let _fake_entry = unsafe { &*(data.as_ptr() as *const crate::types::ext4_fake_dir_entry) };
                 let climit = unsafe {
-                    &*((data.as_ptr() as *const u8)
+                    &*(data.as_ptr()
                         .add(core::mem::size_of::<crate::types::ext4_fake_dir_entry>())
                         as *const ext4_dir_idx_climit)
                 };
@@ -424,7 +424,7 @@ pub fn get_leaf_with_path<D: BlockDevice>(
                 let limit = climit.limit();
 
                 let entries_ptr = unsafe {
-                    (data.as_ptr() as *const u8)
+                    data.as_ptr()
                         .add(core::mem::size_of::<crate::types::ext4_fake_dir_entry>())
                         .add(core::mem::size_of::<ext4_dir_idx_climit>())
                         as *const ext4_dir_idx_entry
@@ -520,7 +520,7 @@ pub fn find_entry<D: BlockDevice>(
     let hash_info = init_hash_info(inode_ref, name)?;
 
     // Find leaf block
-    let leaf_block = get_leaf_block(inode_ref, &hash_info)?;
+    let _leaf_block = get_leaf_block(inode_ref, &hash_info)?;
 
     // Linear search in the leaf block
     // TODO: This should use DirIterator but positioned at specific block
@@ -571,9 +571,9 @@ pub fn is_indexed<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<bool> {
 // HTree Splitting Operations
 // =============================================================================
 
-use crate::types::{ext4_dir_en, ext4_dir_entry_tail, ext4_dir_idx_node, ext4_fake_dir_entry};
+use crate::types::{ext4_dir_en, ext4_dir_entry_tail, ext4_fake_dir_entry};
 use crate::balloc::BlockAllocator;
-use super::checksum::{init_entry_tail, get_tail_mut};
+use super::checksum::init_entry_tail;
 
 /// Directory entry with hash for sorting
 ///
@@ -1107,7 +1107,7 @@ fn split_non_root_index<D: BlockDevice>(
     old_block_addr: u64,
     new_block_addr: u64,
     count: u16,
-    position_in_entries: usize,
+    _position_in_entries: usize,
     block_size: usize,
     has_csum: bool,
 ) -> Result<()> {

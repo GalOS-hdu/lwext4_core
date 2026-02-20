@@ -12,6 +12,7 @@
 
 use crate::{
     consts::EXT4_FEATURE_RO_COMPAT_METADATA_CSUM,
+    error::Result,
     fs::InodeRef,
     superblock::Superblock,
     types::{ext4_extent_header, ext4_extent_tail},
@@ -199,10 +200,10 @@ pub fn verify_checksum(
 pub fn set_inode_extent_checksum<D: BlockDevice>(
     inode_ref: &mut InodeRef<D>,
     sb: &Superblock,
-) {
+) -> Result<()> {
     // 检查是否启用了 METADATA_CSUM 特性
     if !sb.has_ro_compat_feature(EXT4_FEATURE_RO_COMPAT_METADATA_CSUM) {
-        return;
+        return Ok(());
     }
 
     let inode_num = inode_ref.inode_num();
@@ -219,7 +220,9 @@ pub fn set_inode_extent_checksum<D: BlockDevice>(
         };
 
         set_checksum(sb, inode_num, inode_gen, block_data);
-    });
+    })?;
+
+    Ok(())
 }
 
 #[cfg(test)]

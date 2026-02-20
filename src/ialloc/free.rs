@@ -3,8 +3,7 @@
 use crate::{
     bitmap::*,
     block::{Block, BlockDev, BlockDevice},
-    block_group::BlockGroup,
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
     fs::BlockGroupRef,
     superblock::Superblock,
 };

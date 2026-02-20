@@ -2,7 +2,7 @@
 //!
 //! 对应 lwext4 的 `struct jbd_trans`
 
-use super::{JbdBuf, types::*};
+use super::JbdBuf;
 use crate::error::Result;
 use alloc::{collections::{BTreeMap, VecDeque}, vec::Vec};
 

@@ -2,11 +2,6 @@
 //!
 //! 对应 lwext4 的 `struct jbd_buf`
 
-use crate::{
-    block::{Block, BlockDevice},
-    error::Result,
-};
-use alloc::collections::VecDeque;
 
 /// JBD Buffer（日志缓冲区）
 ///

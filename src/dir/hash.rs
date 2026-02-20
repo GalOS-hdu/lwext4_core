@@ -227,8 +227,8 @@ fn prep_hashbuf(src: &[u8], dst: &mut [u32], unsigned_char: bool) {
     }
 
     // Fill rest with padding
-    for i in ((len + 3) / 4)..dst.len() {
-        dst[i] = padding;
+    for item in &mut dst[len.div_ceil(4)..] {
+        *item = padding;
     }
 }
 

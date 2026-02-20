@@ -30,7 +30,7 @@ use crate::{
 };
 
 use super::{
-    helpers::{ext4_ext_pblock, ext4_ext_store_pblock, ext4_idx_pblock},
+    helpers::ext4_ext_store_pblock,
     write::ExtentNodeType,
 };
 
@@ -171,7 +171,7 @@ fn collect_remove_operations<D: BlockDevice>(
     let mut result = Vec::new();
 
     // 读取根节点信息
-    let (depth, root_is_leaf) = inode_ref.with_inode(|inode| -> Result<(u16, bool)> {
+    let (_depth, root_is_leaf) = inode_ref.with_inode(|inode| -> Result<(u16, bool)> {
         let data = unsafe {
             core::slice::from_raw_parts(
                 inode.blocks.as_ptr() as *const u8,
@@ -309,7 +309,7 @@ fn collect_leaf_operations(
         } else if from > ee_block && to < ee_end {
             // 情况 4: 删除中间，分裂成两个
             let left_len = (from - ee_block) as u16;
-            let delete_len = (to - from + 1) as u32;
+            let delete_len = to - from + 1;
             let right_start_lblock = to + 1;
             let right_start_pblock = ee_start + (from - ee_block) as u64 + delete_len as u64;
             let right_len = (ee_end - to) as u16;
@@ -459,7 +459,7 @@ fn traverse_node_for_remove<D: BlockDevice>(
 fn execute_leaf_operations<D: BlockDevice>(
     inode_ref: &mut InodeRef<D>,
     sb: &mut Superblock,
-    allocator: &mut BlockAllocator,
+    _allocator: &mut BlockAllocator,
     leaf_info: &LeafRemoveInfo,
     block_size: u32,
 ) -> Result<()> {
@@ -512,7 +512,7 @@ fn update_root_extents<D: BlockDevice>(
         update_extent_array(data, operations)
     })??;
 
-    inode_ref.mark_dirty();
+    inode_ref.mark_dirty()?;
     Ok(())
 }
 

@@ -162,7 +162,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u32::from_le(desc.block_bitmap_lo) as u64;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u32::from_le(desc.block_bitmap_hi) as u64) << 32;
             }
 
@@ -176,7 +176,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u32::from_le(desc.inode_bitmap_lo) as u64;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u32::from_le(desc.inode_bitmap_hi) as u64) << 32;
             }
 
@@ -190,7 +190,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u32::from_le(desc.inode_table_lo) as u64;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u32::from_le(desc.inode_table_hi) as u64) << 32;
             }
 
@@ -204,7 +204,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u16::from_le(desc.free_blocks_count_lo) as u32;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u16::from_le(desc.free_blocks_count_hi) as u32) << 16;
             }
 
@@ -218,7 +218,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group_mut(|desc| {
             desc.free_blocks_count_lo = (count as u16).to_le();
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 desc.free_blocks_count_hi = ((count >> 16) as u16).to_le();
             }
         })
@@ -246,7 +246,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u16::from_le(desc.free_inodes_count_lo) as u32;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u16::from_le(desc.free_inodes_count_hi) as u32) << 16;
             }
 
@@ -260,7 +260,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group_mut(|desc| {
             desc.free_inodes_count_lo = (count as u16).to_le();
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 desc.free_inodes_count_hi = ((count >> 16) as u16).to_le();
             }
         })
@@ -288,7 +288,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u16::from_le(desc.used_dirs_count_lo) as u32;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u16::from_le(desc.used_dirs_count_hi) as u32) << 16;
             }
 
@@ -302,7 +302,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group_mut(|desc| {
             desc.used_dirs_count_lo = (count as u16).to_le();
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 desc.used_dirs_count_hi = ((count >> 16) as u16).to_le();
             }
         })
@@ -330,7 +330,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group(|desc| {
             let mut v = u16::from_le(desc.itable_unused_lo) as u32;
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 v |= (u16::from_le(desc.itable_unused_hi) as u32) << 16;
             }
 
@@ -344,7 +344,7 @@ impl<'a, D: BlockDevice> BlockGroupRef<'a, D> {
         self.with_block_group_mut(|desc| {
             desc.itable_unused_lo = (count as u16).to_le();
 
-            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE as usize {
+            if sb.group_desc_size() > EXT4_MIN_BLOCK_GROUP_DESCRIPTOR_SIZE {
                 desc.itable_unused_hi = ((count >> 16) as u16).to_le();
             }
         })

@@ -1,7 +1,6 @@
 //! 块设备核心类型
 
 use crate::error::{Error, ErrorKind, Result};
-use alloc::vec;
 
 /// 块设备接口
 ///
@@ -412,7 +411,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
         // 计算物理地址并写入
         let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
-        let count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
+        let count = (block_size as usize).div_ceil(sector_size as usize);
         self.device_mut().write_blocks(pba, count as u32, &flush_buf)?;
 
         // 重新借用cache并标记为clean
@@ -420,7 +419,7 @@ impl<D: BlockDevice> BlockDev<D> {
             cache.mark_clean(lba)?;
         }
 
-        log::debug!("[BlockDev] Flushed single block LBA={:#x}", lba);
+        log::debug!("[BlockDev] Flushed single block LBA={lba:#x}");
         Ok(())
     }
 
@@ -455,7 +454,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
         let actual_count = to_flush.len();
         if actual_count > 0 {
-            log::debug!("[BlockDev] Flushing {} dirty blocks (LRU)", actual_count);
+            log::debug!("[BlockDev] Flushing {actual_count} dirty blocks (LRU)");
 
             // 🚀 性能优化：预分配缓冲区复用
             let mut flush_buf = alloc::vec![0u8; block_size as usize];
@@ -479,7 +478,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
                 // 进行I/O（此时没有cache借用）
                 let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
-                let sector_count = (block_size as usize + sector_size as usize - 1) / sector_size as usize;
+                let sector_count = (block_size as usize).div_ceil(sector_size as usize);
                 self.device_mut().write_blocks(pba, sector_count as u32, &flush_buf)?;
 
                 // 标记clean
@@ -488,7 +487,7 @@ impl<D: BlockDevice> BlockDev<D> {
                 }
             }
 
-            log::debug!("[BlockDev] Flushed {} blocks successfully", actual_count);
+            log::debug!("[BlockDev] Flushed {actual_count} blocks successfully");
         }
 
         Ok(actual_count)
@@ -598,7 +597,7 @@ impl<D: BlockDevice> BlockDev<D> {
 
         // 计算需要读取的块数
         let total_size = block_offset + len;
-        let block_count = ((total_size as u64 + block_size - 1) / block_size) as u32;
+        let block_count = (total_size as u64).div_ceil(block_size) as u32;
 
         // 分配临时缓冲区
         let mut temp = alloc::vec![0u8; block_count as usize * block_size as usize];
@@ -632,7 +631,7 @@ impl<D: BlockDevice> BlockDev<D> {
         let block_offset = (offset % block_size) as usize;
 
         let total_size = block_offset + len;
-        let block_count = ((total_size as u64 + block_size - 1) / block_size) as u32;
+        let block_count = (total_size as u64).div_ceil(block_size) as u32;
 
         let mut temp = alloc::vec![0u8; block_count as usize * block_size as usize];
 
@@ -846,8 +845,7 @@ impl<D: BlockDevice> Drop for BlockDev<D> {
             let dirty_count = cache.dirty_count();
             if dirty_count > 0 {
                 log::warn!(
-                    "[BlockDev] Dropping with {} dirty blocks, flushing...",
-                    dirty_count
+                    "[BlockDev] Dropping with {dirty_count} dirty blocks, flushing..."
                 );
 
                 // 使用重构后的flush方法
@@ -856,7 +854,7 @@ impl<D: BlockDevice> Drop for BlockDev<D> {
                         log::info!("[BlockDev] Drop: successfully flushed all dirty blocks");
                     }
                     Err(e) => {
-                        log::error!("[BlockDev] Drop: failed to flush cache: {:?}", e);
+                        log::error!("[BlockDev] Drop: failed to flush cache: {e:?}");
                     }
                 }
             }

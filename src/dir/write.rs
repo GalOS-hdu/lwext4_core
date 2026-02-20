@@ -31,7 +31,7 @@
 //! ```
 
 use crate::{
-    block::{Block, BlockDev, BlockDevice},
+    block::{Block, BlockDevice},
     consts::*,
     dir::{checksum, htree},
     error::{Error, ErrorKind, Result},
@@ -39,7 +39,6 @@ use crate::{
     superblock::Superblock,
     types::{ext4_dir_entry, ext4_dir_entry_tail},
 };
-use alloc::vec::Vec;
 
 /// 目录项类型常量
 pub const EXT4_DE_UNKNOWN: u8 = 0;
@@ -514,14 +513,7 @@ fn find_and_insert_entry(
         // 检查是否有足够的空闲空间
         if free_space >= required_len {
             log::trace!(
-                "[find_and_insert_entry] FOUND SPACE: offset={}, rec_len={}, actual_len={}, free_space={}, required_len={}, entry_inode={}, entries_checked={}",
-                offset,
-                rec_len,
-                actual_len,
-                free_space,
-                required_len,
-                entry_inode,
-                entries_checked
+                "[find_and_insert_entry] FOUND SPACE: offset={offset}, rec_len={rec_len}, actual_len={actual_len}, free_space={free_space}, required_len={required_len}, entry_inode={entry_inode}, entries_checked={entries_checked}"
             );
             // 找到合适的位置
             if entry_inode != 0 && actual_len > 0 {
@@ -553,10 +545,7 @@ fn find_and_insert_entry(
     }
 
     log::trace!(
-        "[find_and_insert_entry] NO SPACE: name='{}', entries_checked={}, final_offset={}",
-        name,
-        entries_checked,
-        offset
+        "[find_and_insert_entry] NO SPACE: name='{name}', entries_checked={entries_checked}, final_offset={offset}"
     );
     false
 }
@@ -569,7 +558,7 @@ fn split_entry_and_insert(
     name: &str,
     child_inode: u32,
     file_type: u8,
-    required_len: u16,
+    _required_len: u16,
 ) {
     // 获取原条目的 rec_len
     let old_entry = unsafe {
@@ -649,7 +638,7 @@ pub fn append_new_block<D: BlockDevice>(
     name: &str,
     child_inode: u32,
     file_type: u8,
-    required_len: u16,
+    _required_len: u16,
 ) -> Result<()> {
 
     let block_size = sb.block_size();
@@ -674,8 +663,7 @@ pub fn append_new_block<D: BlockDevice>(
 
     let (new_block_addr, _count) = get_blocks(inode_ref, sb, &mut allocator, logical_block, 1, true)?;
 
-    log::info!("[append_new_block] Allocated physical block {} for logical block {}",
-               new_block_addr, logical_block);
+    log::info!("[append_new_block] Allocated physical block {new_block_addr} for logical block {logical_block}");
 
     // 初始化新块
     let uuid = sb.inner().uuid;
@@ -747,6 +735,7 @@ pub fn append_new_block<D: BlockDevice>(
 /// 在目录的第一个块中创建：
 /// - `.` 条目（指向自己）
 /// - `..` 条目（指向父目录）
+///
 /// issue: 默认block1已分配， 需要检查是否需要优化当前函数以移除默认条件， 或者将该逻辑分发到其他函数， 但要能够确保目录至少有一个块已分配
 pub fn dir_init<D: BlockDevice>(
     dir_inode_ref: &mut InodeRef<D>,

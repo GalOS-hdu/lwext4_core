@@ -5,7 +5,6 @@
 use crate::{
     bitmap::{self, *},
     block::{Block, BlockDev, BlockDevice},
-    block_group::BlockGroup,
     error::{Error, ErrorKind, Result},
     fs::BlockGroupRef,
     superblock::Superblock,
@@ -180,8 +179,7 @@ impl BlockAllocator {
             let device_total = bdev.total_blocks();
             if alloc >= device_total {
                 log::error!(
-                    "[try_alloc_in_group] INVALID block allocated: {:#x} (exceeds device total {}), idx={}, bgid={}",
-                    alloc, device_total, idx, bgid
+                    "[try_alloc_in_group] INVALID block allocated: {alloc:#x} (exceeds device total {device_total}), idx={idx}, bgid={bgid}"
                 );
                 return Err(Error::new(
                     ErrorKind::Corrupted,
@@ -190,8 +188,7 @@ impl BlockAllocator {
             }
 
             log::info!(
-                "[try_alloc_in_group] Allocated block: {:#x} (idx={}, bgid={})",
-                alloc, idx, bgid
+                "[try_alloc_in_group] Allocated block: {alloc:#x} (idx={idx}, bgid={bgid})"
             );
 
             // 第三步：更新块组描述符
@@ -203,9 +200,7 @@ impl BlockAllocator {
 
             // 更新 superblock 空闲块计数
             let mut sb_free_blocks = sb.free_blocks_count();
-            if sb_free_blocks > 0 {
-                sb_free_blocks -= 1;
-            }
+            sb_free_blocks = sb_free_blocks.saturating_sub(1);
             sb.set_free_blocks_count(sb_free_blocks);
             sb.write(bdev)?;
 
@@ -304,9 +299,7 @@ pub fn try_alloc_block<D: BlockDevice>(
 
     // 更新 superblock 空闲块计数
     let mut sb_free_blocks = sb.free_blocks_count();
-    if sb_free_blocks > 0 {
-        sb_free_blocks -= 1;
-    }
+    sb_free_blocks = sb_free_blocks.saturating_sub(1);
     sb.set_free_blocks_count(sb_free_blocks);
     sb.write(bdev)?;
 
@@ -499,8 +492,7 @@ pub fn alloc_blocks<D: BlockDevice>(
     let device_total = bdev.total_blocks();
 
     info!(
-        "[BALLOC] Requesting {} blocks, goal={:#x}, device_total={}",
-        max_count, goal, device_total
+        "[BALLOC] Requesting {max_count} blocks, goal={goal:#x}, device_total={device_total}"
     );
 
     // 首先尝试在 goal 所在的块组中分配
@@ -511,8 +503,7 @@ pub fn alloc_blocks<D: BlockDevice>(
         // 验证分配的块是否在设备范围内
         if start_block + count as u64 > device_total {
             error!(
-                "[BALLOC] Allocated blocks OUT OF RANGE! start={:#x}, count={}, device_total={}",
-                start_block, count, device_total
+                "[BALLOC] Allocated blocks OUT OF RANGE! start={start_block:#x}, count={count}, device_total={device_total}"
             );
             return Err(Error::new(
                 ErrorKind::Corrupted,
@@ -549,8 +540,7 @@ pub fn alloc_blocks<D: BlockDevice>(
                 // 验证分配的块是否在设备范围内
                 if start_block + count as u64 > device_total {
                     error!(
-                        "[BALLOC] Allocated blocks OUT OF RANGE (fallback)! start={:#x}, count={}, device_total={}",
-                        start_block, count, device_total
+                        "[BALLOC] Allocated blocks OUT OF RANGE (fallback)! start={start_block:#x}, count={count}, device_total={device_total}"
                     );
                     return Err(Error::new(
                         ErrorKind::Corrupted,
@@ -559,8 +549,7 @@ pub fn alloc_blocks<D: BlockDevice>(
                 }
 
                 info!(
-                    "[BALLOC] Allocated {} blocks (fallback to bg {}): start={:#x}",
-                    count, bgid, start_block
+                    "[BALLOC] Allocated {count} blocks (fallback to bg {bgid}): start={start_block:#x}"
                 );
                 return Ok((start_block, count));
             }

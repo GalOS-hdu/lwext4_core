@@ -114,7 +114,7 @@ pub struct BlockCache {
     /// 写回模式计数器
     ///
     /// > 0 时启用写回模式（延迟写入）
-    /// == 0 时启用写穿模式（立即写入）
+    /// > == 0 时启用写穿模式（立即写入）
     write_back_counter: u32,
 
     /// 统计信息
@@ -215,7 +215,7 @@ impl BlockCache {
         // 创建新块并插入
         let buf = CacheBuffer::new(lba, self.block_size);
         self.cache.put(lba, buf);
-        log::debug!("[CACHE] alloc LBA={:#x} NEW block inserted", lba);
+        log::debug!("[CACHE] alloc LBA={lba:#x} NEW block inserted");
 
         // 返回新插入的块
         Ok((self.cache.get_mut(&lba).unwrap(), true))
@@ -243,7 +243,7 @@ impl BlockCache {
             if !self.dirty_set.contains(lba) {
                 // 找到非脏块，驱逐它
                 self.cache.pop(lba);
-                log::debug!("[CACHE] Evicted clean block LBA={:#x}", lba);
+                log::debug!("[CACHE] Evicted clean block LBA={lba:#x}");
                 return Ok(());
             }
         }
@@ -361,9 +361,9 @@ impl BlockCache {
         lba: u64,
         device: &mut D,
         sector_size: u32,
-        partition_offset: u64,
+        _partition_offset: u64,
     ) -> Result<()> {
-        log::debug!("[CACHE] flush_lba LBA={:#x}", lba);
+        log::debug!("[CACHE] flush_lba LBA={lba:#x}");
         if let Some(buf) = self.cache.get_mut(&lba) {
             if buf.is_dirty() {
                 // 计算物理块地址
@@ -402,8 +402,7 @@ impl BlockCache {
         let count = dirty_lbas.len();
 
         log::debug!(
-            "[CACHE] Flushing {} dirty blocks",
-            count
+            "[CACHE] Flushing {count} dirty blocks"
         );
 
         // 逐个刷新

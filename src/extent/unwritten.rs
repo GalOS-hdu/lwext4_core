@@ -25,7 +25,6 @@
 //! - `zero_unwritten_range()` - 零填充未写入区域
 
 use crate::{
-    balloc::BlockAllocator,
     block::BlockDevice,
     error::{Error, ErrorKind, Result},
     extent::write::insert_extent_simple,
@@ -204,7 +203,7 @@ pub fn split_extent_at<D: BlockDevice>(
             } else {
                 mark_initialized(extent);
             }
-        });
+        })?;
 
         inode_ref.mark_dirty()?;
         return Ok(());
@@ -227,7 +226,7 @@ pub fn split_extent_at<D: BlockDevice>(
         if split_flag & EXT4_EXT_MARK_UNWRIT1 != 0 {
             mark_unwritten(extent);
         }
-    });
+    })?;
 
     // 第二步：创建新 extent（分裂后的第二部分）
     let mut new_extent = ext4_extent {
@@ -264,7 +263,7 @@ pub fn split_extent_at<D: BlockDevice>(
             } else {
                 mark_initialized(extent);
             }
-        });
+        })?;
 
         return Err(e);
     }

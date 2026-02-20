@@ -41,11 +41,8 @@ use crate::{
     Result, Error, ErrorKind,
     block::{Block, BlockDevice},
     fs::InodeRef,
-    superblock::Superblock,
-    balloc,
 };
 
-use super::prefix;
 
 /// 列出所有扩展属性
 ///
@@ -90,7 +87,7 @@ pub fn list<D: BlockDevice>(
     let xattr_block_addr = inode_ref.get_xattr_block_addr()?;
     if xattr_block_addr != 0 {
         // 先获取 superblock（避免借用冲突）
-        let block_size = inode_ref.superblock().block_size() as usize;
+        let _block_size = inode_ref.superblock().block_size() as usize;
 
         // 使用 Block 访问 xattr block
         let mut block = Block::get(inode_ref.bdev_mut(), xattr_block_addr)?;
@@ -148,8 +145,8 @@ pub fn list<D: BlockDevice>(
                     }
                 }
 
-                let entry_len = ((name_len + crate::consts::EXT4_XATTR_ROUND as usize + core::mem::size_of::<crate::types::ext4_xattr_entry>())
-                    & !(crate::consts::EXT4_XATTR_ROUND as usize));
+                let entry_len = (name_len + crate::consts::EXT4_XATTR_ROUND as usize + core::mem::size_of::<crate::types::ext4_xattr_entry>())
+                    & !(crate::consts::EXT4_XATTR_ROUND as usize);
                 entry_offset += entry_len;
             }
 
@@ -433,13 +430,13 @@ fn set_in_block<D: BlockDevice>(
             // hash::set_block_checksum(sb, block_num, header, block_data)?;
 
             Ok::<(), Error>(())
-        })?;
+        })??;
     } else {
         // 情况 2: 已有 xattr block
         // 先检查引用计数
         let refcount = {
             let mut block_handle = Block::get(inode_ref.bdev_mut(), xattr_block_addr)?;
-            block_handle.with_data(|data| block::get_refcount(data))??
+            block_handle.with_data(block::get_refcount)??
         };
 
         // 如果引用计数 > 1，需要 COW
@@ -470,7 +467,7 @@ fn set_in_block<D: BlockDevice>(
                     // 设置新块的引用计数为 1
                     block::set_refcount(new_data, 1)?;
                     Ok::<(), Error>(())
-                })?;
+                })??;
             }
 
             // 减少旧块的引用计数
@@ -479,7 +476,7 @@ fn set_in_block<D: BlockDevice>(
                 old_block.with_data_mut(|data| {
                     block::dec_refcount(data)?;
                     Ok::<(), Error>(())
-                })?;
+                })??;
             }
 
             // 更新 inode 的 file_acl
@@ -511,7 +508,7 @@ fn set_in_block<D: BlockDevice>(
             // hash::set_block_checksum(sb, block_num, header, block_data)?;
 
             Ok::<(), Error>(())
-        })?;
+        })??;
     }
 
     Ok(())
@@ -540,7 +537,7 @@ fn remove_from_block<D: BlockDevice>(
     // 检查引用计数
     let refcount = {
         let mut block_handle = Block::get(inode_ref.bdev_mut(), xattr_block_addr)?;
-        block_handle.with_data(|data| block::get_refcount(data))??
+        block_handle.with_data(block::get_refcount)??
     };
 
     // 如果引用计数 > 1，需要 COW
@@ -571,7 +568,7 @@ fn remove_from_block<D: BlockDevice>(
                 // 设置新块的引用计数为 1
                 block::set_refcount(new_data, 1)?;
                 Ok::<(), Error>(())
-            })?;
+            })??;
         }
 
         // 减少旧块的引用计数
@@ -580,7 +577,7 @@ fn remove_from_block<D: BlockDevice>(
             old_block.with_data_mut(|data| {
                 block::dec_refcount(data)?;
                 Ok::<(), Error>(())
-            })?;
+            })??;
         }
 
         // 更新 inode 的 file_acl

@@ -249,7 +249,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
     /// // 自动写回
     /// ```
     pub fn get_block_group_ref(&mut self, bgid: u32) -> Result<BlockGroupRef<D>> {
-        BlockGroupRef::get(&mut self.bdev, &mut self.sb, bgid)
+        BlockGroupRef::get(&mut self.bdev, &self.sb, bgid)
     }
 
     /// 打开文件
@@ -781,8 +781,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
         }
 
         log::debug!(
-            "[TRUNCATE] inode {} truncate: {} -> {} bytes",
-            inode_num, old_size, new_size
+            "[TRUNCATE] inode {inode_num} truncate: {old_size} -> {new_size} bytes"
         );
 
         if old_size < new_size {
@@ -792,8 +791,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
             // 不需要实际分配块或写入数据
 
             log::debug!(
-                "[TRUNCATE] Expanding file (sparse): {} -> {} bytes",
-                old_size, new_size
+                "[TRUNCATE] Expanding file (sparse): {old_size} -> {new_size} bytes"
             );
 
             inode_ref.set_size(new_size)?;
@@ -807,8 +805,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
             // 3. 释放不再需要的数据块
 
             log::debug!(
-                "[TRUNCATE] Shrinking file: {} -> {} bytes",
-                old_size, new_size
+                "[TRUNCATE] Shrinking file: {old_size} -> {new_size} bytes"
             );
 
             // 步骤 1: 更新 i_size
@@ -824,10 +821,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
                 let last_block_num = ((new_size - 1) / block_size) as u32;
 
                 log::debug!(
-                    "[TRUNCATE] Zeroing partial block {}: offset {} to {}",
-                    last_block_num,
-                    offset_in_block,
-                    block_size
+                    "[TRUNCATE] Zeroing partial block {last_block_num}: offset {offset_in_block} to {block_size}"
                 );
 
                 // 重新获取 inode_ref 用于查找物理块
@@ -869,17 +863,12 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
                     self.bdev.write_block(physical_block, &block_buf)?;
 
                     log::debug!(
-                        "[TRUNCATE] Zeroed bytes [{}, {}) in block {} (physical block {})",
-                        offset_in_block,
-                        block_size,
-                        last_block_num,
-                        physical_block
+                        "[TRUNCATE] Zeroed bytes [{offset_in_block}, {block_size}) in block {last_block_num} (physical block {physical_block})"
                     );
                 } else {
                     // 该块不存在（稀疏文件的hole），无需清零
                     log::debug!(
-                        "[TRUNCATE] Block {} is a hole, no need to zero",
-                        last_block_num
+                        "[TRUNCATE] Block {last_block_num} is a hole, no need to zero"
                     );
                 }
             }
@@ -890,7 +879,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
             let first_block_to_remove = if new_size == 0 {
                 0
             } else {
-                ((new_size + block_size - 1) / block_size) as u32
+                new_size.div_ceil(block_size) as u32
             };
 
             let last_block_to_remove = if old_size == 0 {
@@ -902,8 +891,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
             // 步骤 4: 如果有需要释放的块，调用 remove_space
             if first_block_to_remove <= last_block_to_remove {
                 log::debug!(
-                    "[TRUNCATE] Freeing blocks: [{}, {}]",
-                    first_block_to_remove, last_block_to_remove
+                    "[TRUNCATE] Freeing blocks: [{first_block_to_remove}, {last_block_to_remove}]"
                 );
 
                 // 重新获取 inode_ref 用于 remove_space
@@ -1019,7 +1007,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
     /// let inode_num = fs.create_file("/tmp", "test.txt", 0o644)?;
     /// ```
     pub fn create_file(&mut self, parent_path: &str, name: &str, mode: u16) -> Result<u32> {
-        use crate::{consts::*, dir::write::{self, EXT4_DE_REG_FILE}, extent::tree_init};
+        use crate::{consts::*, dir::write::EXT4_DE_REG_FILE, extent::tree_init};
 
         // 1. 分配新 inode
         let inode_num = self.alloc_inode(false)?;
@@ -1090,7 +1078,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
     /// let inode_num = fs.create_dir("/tmp", "mydir", 0o755)?;
     /// ```
     pub fn create_dir(&mut self, parent_path: &str, name: &str, mode: u16) -> Result<u32> {
-        use crate::{consts::*, dir::write::{self, EXT4_DE_DIR}, extent::tree_init};
+        use crate::{consts::*, dir::write::EXT4_DE_DIR, extent::tree_init};
 
         // 1. 分配新 inode
         let inode_num = self.alloc_inode(true)?;
@@ -1430,9 +1418,9 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
 
         // 2. 构造完整路径查找文件 inode
         let full_path = if parent_path.ends_with('/') {
-            alloc::format!("{}{}", parent_path, name)
+            alloc::format!("{parent_path}{name}")
         } else {
-            alloc::format!("{}/{}", parent_path, name)
+            alloc::format!("{parent_path}/{name}")
         };
         let file_inode = lookup_path(&mut self.bdev, &mut self.sb, &full_path)?;
 
@@ -1513,9 +1501,9 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
 
         // 2. 构造完整路径查找目录 inode
         let full_path = if parent_path.ends_with('/') {
-            alloc::format!("{}{}", parent_path, name)
+            alloc::format!("{parent_path}{name}")
         } else {
-            alloc::format!("{}/{}", parent_path, name)
+            alloc::format!("{parent_path}/{name}")
         };
         let dir_inode = lookup_path(&mut self.bdev, &mut self.sb, &full_path)?;
 
@@ -1614,9 +1602,9 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
 
         // 3. 构造完整路径查找文件/目录 inode
         let old_full_path = if old_parent_path.ends_with('/') {
-            alloc::format!("{}{}", old_parent_path, old_name)
+            alloc::format!("{old_parent_path}{old_name}")
         } else {
-            alloc::format!("{}/{}", old_parent_path, old_name)
+            alloc::format!("{old_parent_path}/{old_name}")
         };
         let target_inode = lookup_path(&mut self.bdev, &mut self.sb, &old_full_path)?;
 
@@ -2308,7 +2296,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
                 self.remove_dir_entry(dst_dir_ino, dst_name)?;
 
                 // 减少链接计数并释放资源（如果链接计数降为 0）
-                let (old_is_dir, new_links) = {
+                let (old_is_dir, _new_links) = {
                     let mut old_inode_ref = InodeRef::get(&mut self.bdev, &mut self.sb, old_target_inode)?;
                     let old_is_dir = old_inode_ref.is_dir()?;
 
@@ -2328,8 +2316,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
                     // 真正的删除会在 VFS 层没有引用时通过 drop_inode 触发
                     if new_links == 0 {
                         log::info!(
-                            "[RENAME] inode {} i_nlink=0, marked for deferred deletion",
-                            old_target_inode
+                            "[RENAME] inode {old_target_inode} i_nlink=0, marked for deferred deletion"
                         );
                         // 不在这里释放，等待 drop_inode 调用
                     }
@@ -2502,7 +2489,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
         };
 
         if nlink == 0 {
-            log::info!("[DROP_INODE] inode {} has nlink=0, freeing resources", ino);
+            log::info!("[DROP_INODE] inode {ino} has nlink=0, freeing resources");
 
             // 释放数据块
             let mut inode_ref = InodeRef::get(&mut self.bdev, &mut self.sb, ino)?;
@@ -2512,7 +2499,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
             // 释放inode号
             self.free_inode(ino, is_dir)?;
         } else {
-            log::debug!("[DROP_INODE] inode {} still has nlink={}, not freeing", ino, nlink);
+            log::debug!("[DROP_INODE] inode {ino} still has nlink={nlink}, not freeing");
         }
 
         Ok(())
