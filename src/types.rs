@@ -12,6 +12,44 @@
 
 use crate::consts::*;
 
+/// 为 `#[repr(C)]` POD 结构体统一实现 `Default`（全零初始化）
+///
+/// 所有磁盘格式结构体都是纯数据类型，全零是合法的初始值。
+macro_rules! impl_zeroed_default {
+    ($($t:ty),+ $(,)?) => {
+        $(
+            impl Default for $t {
+                fn default() -> Self {
+                    // SAFETY: 所有目标类型都是 #[repr(C)] POD 类型，全零合法
+                    unsafe { core::mem::zeroed() }
+                }
+            }
+        )+
+    };
+}
+
+impl_zeroed_default!(
+    ext4_sblock,
+    ext4_inode,
+    ext4_dir_idx_climit,
+    ext4_dir_idx_dot_en,
+    ext4_dir_idx_rinfo,
+    ext4_dir_idx_entry,
+    ext4_dir_idx_root,
+    ext4_dir_idx_node,
+    ext4_fake_dir_entry,
+    ext4_dir_idx_tail,
+    ext4_dir_entry_tail,
+    ext4_group_desc,
+    ext4_extent_header,
+    ext4_extent,
+    ext4_extent_idx,
+    ext4_extent_tail,
+    ext4_xattr_header,
+    ext4_xattr_ibody_header,
+    ext4_xattr_entry,
+);
+
 //=============================================================================
 // 磁盘格式结构定义
 //=============================================================================
@@ -122,12 +160,6 @@ pub struct ext4_sblock {
     pub checksum: u32,               // 1020: superblock校验和
 }
 
-impl Default for ext4_sblock {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 impl ext4_sblock {
     /// 获取块大小（字节）
     pub fn block_size(&self) -> u32 {
@@ -211,12 +243,6 @@ pub struct ext4_inode {
     pub projid: u32,                 // 156: 项目ID
 }
 
-impl Default for ext4_inode {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 impl ext4_inode {
     /// 获取文件大小（合并高低32位）
     pub fn file_size(&self) -> u64 {
@@ -243,6 +269,45 @@ impl ext4_inode {
     /// 是否是符号链接
     pub fn is_symlink(&self) -> bool {
         (u16::from_le(self.mode) & EXT4_INODE_MODE_TYPE_MASK) == EXT4_INODE_MODE_SOFTLINK
+    }
+
+    /// inode.blocks 字段的字节大小（15 * 4 = 60 字节）
+    const BLOCKS_BYTE_SIZE: usize = EXT4_INODE_BLOCKS * core::mem::size_of::<u32>();
+
+    /// 将 `blocks` 数组视为字节切片（extent 树根节点数据）
+    ///
+    /// inode 使用 extent 树时，`blocks[0..15]` 存储 extent 树根节点
+    pub fn extent_root_data(&self) -> &[u8] {
+        // SAFETY: blocks 是 [u32; 15]，repr(C)，视为 60 字节的 &[u8] 安全
+        unsafe {
+            core::slice::from_raw_parts(
+                self.blocks.as_ptr() as *const u8,
+                Self::BLOCKS_BYTE_SIZE,
+            )
+        }
+    }
+
+    /// 将 `blocks` 数组视为可变字节切片（extent 树根节点数据）
+    pub fn extent_root_data_mut(&mut self) -> &mut [u8] {
+        // SAFETY: 同 extent_root_data
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                self.blocks.as_mut_ptr() as *mut u8,
+                Self::BLOCKS_BYTE_SIZE,
+            )
+        }
+    }
+
+    /// 获取 extent 树根节点头部的引用
+    pub fn extent_header(&self) -> &ext4_extent_header {
+        // SAFETY: blocks 至少 60 字节，ext4_extent_header 是 12 字节，对齐满足（u32 对齐）
+        unsafe { &*(self.blocks.as_ptr() as *const ext4_extent_header) }
+    }
+
+    /// 获取 extent 树根节点头部的可变引用
+    pub fn extent_header_mut(&mut self) -> &mut ext4_extent_header {
+        // SAFETY: 同 extent_header
+        unsafe { &mut *(self.blocks.as_mut_ptr() as *mut ext4_extent_header) }
     }
 }
 
@@ -274,12 +339,6 @@ pub type ext4_dir_en = ext4_dir_entry;
 pub struct ext4_dir_idx_climit {
     pub limit: u16,                  // 最大条目数
     pub count: u16,                  // 当前条目数
-}
-
-impl Default for ext4_dir_idx_climit {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_dir_idx_climit {
@@ -317,12 +376,6 @@ pub struct ext4_dir_idx_dot_en {
     pub name: [u8; 4],               // 名称 ".\0\0\0"
 }
 
-impl Default for ext4_dir_idx_dot_en {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 impl ext4_dir_idx_dot_en {
     /// 获取 inode 号
     pub fn inode(&self) -> u32 {
@@ -346,12 +399,6 @@ pub struct ext4_dir_idx_rinfo {
     pub info_length: u8,             // 信息长度（8字节）
     pub indirect_levels: u8,         // 间接层数
     pub unused_flags: u8,            // 未使用的标志
-}
-
-impl Default for ext4_dir_idx_rinfo {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_dir_idx_rinfo {
@@ -396,12 +443,6 @@ pub struct ext4_dir_idx_entry {
     pub block: u32,                  // 块号
 }
 
-impl Default for ext4_dir_idx_entry {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 impl ext4_dir_idx_entry {
     /// 获取哈希值
     pub fn hash(&self) -> u32 {
@@ -436,12 +477,6 @@ pub struct ext4_dir_idx_root {
     pub en: [ext4_dir_idx_entry; 0], // 索引条目数组（变长）
 }
 
-impl Default for ext4_dir_idx_root {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 /// HTree 索引节点结构
 ///
 /// 对应 ext4 磁盘格式中的 ext4_dir_idx_node
@@ -464,18 +499,6 @@ pub struct ext4_fake_dir_entry {
     pub inode_type: u8,              // 文件类型
 }
 
-impl Default for ext4_fake_dir_entry {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
-impl Default for ext4_dir_idx_node {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 /// HTree 索引尾部（校验和）
 ///
 /// 对应 ext4 磁盘格式中的 ext4_dir_idx_tail
@@ -484,12 +507,6 @@ impl Default for ext4_dir_idx_node {
 pub struct ext4_dir_idx_tail {
     pub reserved: u32,               // 保留字段
     pub checksum: u32,               // 校验和
-}
-
-impl Default for ext4_dir_idx_tail {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_dir_idx_tail {
@@ -515,12 +532,6 @@ pub struct ext4_dir_entry_tail {
     pub reserved_zero2: u8,          // 保留字段 2
     pub reserved_ft: u8,             // 保留文件类型（0xDE）
     pub checksum: u32,               // 校验和
-}
-
-impl Default for ext4_dir_entry_tail {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_dir_entry_tail {
@@ -578,12 +589,6 @@ pub struct ext4_group_desc {
     pub reserved: u32,               // 保留
 }
 
-impl Default for ext4_group_desc {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 impl ext4_group_desc {
     /// 获取块位图块号（合并高低32位）
     pub fn block_bitmap(&self) -> u64 {
@@ -621,12 +626,6 @@ pub struct ext4_extent_header {
     pub max: u16,        // 节点中最大 entry 数量
     pub depth: u16,      // 树的深度，0 表示叶子节点
     pub generation: u32, // generation ID
-}
-
-impl Default for ext4_extent_header {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_extent_header {
@@ -668,12 +667,6 @@ pub struct ext4_extent {
     pub len: u16,      // extent 长度（块数）
     pub start_hi: u16, // 物理块号高 16 位
     pub start_lo: u32, // 物理块号低 32 位
-}
-
-impl Default for ext4_extent {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_extent {
@@ -721,12 +714,6 @@ pub struct ext4_extent_idx {
     pub unused: u16,  // 保留
 }
 
-impl Default for ext4_extent_idx {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 impl ext4_extent_idx {
     /// 获取逻辑块号
     pub fn logical_block(&self) -> u32 {
@@ -766,12 +753,6 @@ pub struct ext4_extent_tail {
     pub checksum: u32,
 }
 
-impl Default for ext4_extent_tail {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 //=============================================================================
 // Extended Attributes (xattr) 结构定义
 //=============================================================================
@@ -792,12 +773,6 @@ pub struct ext4_xattr_header {
     pub h_reserved: [u32; 3], // 保留字段
 }
 
-impl Default for ext4_xattr_header {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
-}
-
 /// xattr inode 内部头部
 ///
 /// 对应 ext4 磁盘格式中的 ext4_xattr_ibody_header
@@ -807,12 +782,6 @@ impl Default for ext4_xattr_header {
 #[allow(non_camel_case_types)]
 pub struct ext4_xattr_ibody_header {
     pub h_magic: u32,       // 魔数：EXT4_XATTR_MAGIC
-}
-
-impl Default for ext4_xattr_ibody_header {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 /// xattr 条目
@@ -829,12 +798,6 @@ pub struct ext4_xattr_entry {
     pub e_value_block: u32, // 值所在的块号（未使用，总是 0）
     pub e_value_size: u32,  // 值的大小
     pub e_hash: u32,        // 名称和值的哈希
-}
-
-impl Default for ext4_xattr_entry {
-    fn default() -> Self {
-        unsafe { core::mem::zeroed() }
-    }
 }
 
 impl ext4_xattr_entry {

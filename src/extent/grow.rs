@@ -64,16 +64,7 @@ pub fn grow_tree_depth<D: BlockDevice>(
 
     // 1. 读取当前根节点信息
     let (old_header, is_leaf) = inode_ref.with_inode(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
-
-        let header = unsafe {
-            *(data.as_ptr() as *const ext4_extent_header)
-        };
+        let header = *inode.extent_header();
 
         let is_leaf = header.is_leaf();
 
@@ -156,12 +147,7 @@ fn copy_extents_to_new_block<D: BlockDevice>(
 ) -> Result<()> {
     // 读取当前根节点的 extent 数组
     let extents: Vec<ext4_extent> = inode_ref.with_inode(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data();
 
         let entries = u16::from_le(old_header.entries);
         let header_size = core::mem::size_of::<ext4_extent_header>();
@@ -227,12 +213,7 @@ fn copy_indices_to_new_block<D: BlockDevice>(
 ) -> Result<()> {
     // 读取当前根节点的 index 数组
     let indices: Vec<ext4_extent_idx> = inode_ref.with_inode(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data();
 
         let entries = u16::from_le(old_header.entries);
         let header_size = core::mem::size_of::<ext4_extent_header>();
@@ -297,12 +278,7 @@ fn create_new_root_in_inode<D: BlockDevice>(
     child_block: u64,
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts_mut(
-                inode.blocks.as_mut_ptr() as *mut u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data_mut();
 
         // 创建新的根节点 header
         let header = unsafe {

@@ -232,14 +232,13 @@ impl BlockCache {
     /// **重要**：绝不驱逐脏块！驱逐脏块会导致数据丢失和磁盘损坏。
     /// 调用者应该在调用alloc之前检查脏块比例，必要时主动flush。
     fn evict_for_new_block(&mut self) -> Result<()> {
-        // lru crate的iter()按照LRU到MRU顺序遍历
+        // lru crate的iter()按照MRU到LRU顺序遍历（从head.next开始）
         // 收集所有块的LBA
         let keys: alloc::vec::Vec<u64> = self.cache.iter().map(|(k, _)| *k).collect();
 
         // 从LRU端（最老的）开始查找非脏块
-        // 注意：iter()已经是LRU到MRU顺序，不需要rev()
-        // TODO：这里的算法或许可以进一步优化
-        for lba in keys.iter() {
+        // iter()是MRU→LRU顺序，所以需要rev()从LRU端开始
+        for lba in keys.iter().rev() {
             if !self.dirty_set.contains(lba) {
                 // 找到非脏块，驱逐它
                 self.cache.pop(lba);

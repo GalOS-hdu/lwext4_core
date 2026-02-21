@@ -207,10 +207,7 @@ impl DirIterator {
 
         block.with_data(|data| {
             // 读取目录项头部
-            let entry_ptr = unsafe {
-                data.as_ptr().add(self.offset_in_block) as *const ext4_dir_entry
-            };
-            let entry_header = unsafe { core::ptr::read_unaligned(entry_ptr) };
+            let entry_header: ext4_dir_entry = crate::bytes::read_struct(&data[self.offset_in_block..])?;
 
             let rec_len = u16::from_le(entry_header.rec_len);
 

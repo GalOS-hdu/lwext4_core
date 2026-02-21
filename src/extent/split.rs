@@ -360,15 +360,7 @@ fn insert_parent_index<D: BlockDevice>(
         // grow_tree_depth之后，root已经是新的索引节点了
         // 需要从inode重新读取header
         inode_ref.with_inode(|inode| {
-            let data = unsafe {
-                core::slice::from_raw_parts(
-                    inode.blocks.as_ptr() as *const u8,
-                    60,
-                )
-            };
-            let header = unsafe {
-                *(data.as_ptr() as *const ext4_extent_header)
-            };
+            let header = inode.extent_header();
             (header.entries_count(), header.max_entries())
         })?
     } else {
@@ -491,12 +483,7 @@ pub(super) fn read_extents_from_inode<D: BlockDevice>(
     inode_ref: &mut InodeRef<D>,
 ) -> Result<(Vec<ext4_extent>, ext4_extent_header)> {
     inode_ref.with_inode(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data();
 
         let header = unsafe {
             *(data.as_ptr() as *const ext4_extent_header)
@@ -560,12 +547,7 @@ pub(super) fn read_indices_from_inode<D: BlockDevice>(
     inode_ref: &mut InodeRef<D>,
 ) -> Result<(Vec<ext4_extent_idx>, ext4_extent_header)> {
     inode_ref.with_inode(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data();
 
         let header = unsafe {
             *(data.as_ptr() as *const ext4_extent_header)
@@ -631,12 +613,7 @@ pub(super) fn write_extents_to_inode<D: BlockDevice>(
     extents: &[ext4_extent],
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| -> Result<()> {
-        let data = unsafe {
-            core::slice::from_raw_parts_mut(
-                inode.blocks.as_mut_ptr() as *mut u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data_mut();
 
         // 写入 header
         unsafe {
@@ -704,12 +681,7 @@ fn write_indices_to_inode<D: BlockDevice>(
     indices: &[ext4_extent_idx],
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| -> Result<()> {
-        let data = unsafe {
-            core::slice::from_raw_parts_mut(
-                inode.blocks.as_mut_ptr() as *mut u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data_mut();
 
         // 写入 header
         unsafe {

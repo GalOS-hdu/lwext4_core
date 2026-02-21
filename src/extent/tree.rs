@@ -59,18 +59,10 @@ impl<'a, D: BlockDevice> ExtentTree<'a, D> {
         }
 
         // extent 树根节点位于 inode 的 blocks 数组中
-        // blocks[0..14] 包含 extent 树的根节点数据（60 字节）
-        let root_data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60, // 15 * 4 = 60 bytes
-            )
-        };
+        let root_data = inode.extent_root_data();
 
         // 解析根节点的 extent header
-        let header = unsafe {
-            core::ptr::read_unaligned(root_data.as_ptr() as *const ext4_extent_header)
-        };
+        let header: ext4_extent_header = crate::bytes::read_struct(root_data)?;
 
         if !header.is_valid() {
             return Err(Error::new(
@@ -119,11 +111,7 @@ impl<'a, D: BlockDevice> ExtentTree<'a, D> {
                 ));
             }
 
-            let extent = unsafe {
-                core::ptr::read_unaligned(
-                    node_data[offset..].as_ptr() as *const ext4_extent
-                )
-            };
+            let extent: ext4_extent = crate::bytes::read_struct(&node_data[offset..])?;
 
             let extent_start = extent.logical_block();
             let extent_len = extent.actual_len() as u32;
@@ -192,11 +180,7 @@ impl<'a, D: BlockDevice> ExtentTree<'a, D> {
                 ));
             }
 
-            let idx = unsafe {
-                core::ptr::read_unaligned(
-                    node_data[offset..].as_ptr() as *const ext4_extent_idx
-                )
-            };
+            let idx: ext4_extent_idx = crate::bytes::read_struct(&node_data[offset..])?;
 
             let idx_block = idx.logical_block();
 
@@ -225,9 +209,7 @@ impl<'a, D: BlockDevice> ExtentTree<'a, D> {
             drop(block);
 
             // 解析子节点的头部
-            let child_header = unsafe {
-                core::ptr::read_unaligned(child_data.as_ptr() as *const ext4_extent_header)
-            };
+            let child_header: ext4_extent_header = crate::bytes::read_struct(&child_data)?;
 
             if !child_header.is_valid() {
                 return Err(Error::new(

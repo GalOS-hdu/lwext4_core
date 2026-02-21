@@ -177,12 +177,7 @@ pub fn check_inode_extent<D: BlockDevice>(
         let inode_gen = u32::from_le(inode.generation);
 
         // 将 inode.blocks 转换为字节切片并复制
-        let block_data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                core::mem::size_of_val(&inode.blocks),
-            )
-        };
+        let block_data = inode.extent_root_data();
 
         // 读取 depth
         let header_ptr = block_data.as_ptr() as *const ext4_extent_header;

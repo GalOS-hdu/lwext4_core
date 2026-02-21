@@ -31,12 +31,7 @@ pub fn write_superblock<D: BlockDevice>(bdev: &mut BlockDev<D>, sb: &mut ext4_sb
     super::checksum::set_checksum(sb);
 
     // 序列化 superblock 到字节数组
-    let sb_bytes = unsafe {
-        core::slice::from_raw_parts(
-            sb as *const ext4_sblock as *const u8,
-            core::mem::size_of::<ext4_sblock>(),
-        )
-    };
+    let sb_bytes = crate::bytes::as_bytes(sb);
 
     // 写入到设备（偏移 1024 字节）
     bdev.write_bytes(EXT4_SUPERBLOCK_OFFSET, sb_bytes)?;
@@ -72,12 +67,7 @@ pub fn write_superblock_with_backups<D: BlockDevice>(bdev: &mut BlockDev<D>, sb:
     super::checksum::set_checksum(sb);
 
     // 序列化 superblock 到字节数组
-    let sb_bytes = unsafe {
-        core::slice::from_raw_parts(
-            sb as *const ext4_sblock as *const u8,
-            core::mem::size_of::<ext4_sblock>(),
-        )
-    };
+    let sb_bytes = crate::bytes::as_bytes(sb);
 
     // 1. 写入主 superblock（偏移 1024 字节）
     bdev.write_bytes(EXT4_SUPERBLOCK_OFFSET, sb_bytes)?;

@@ -80,8 +80,7 @@ pub fn tree_init<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<()> {
     inode_ref.with_inode_mut(|inode| {
         // inode.blocks 是 15 个 u32，总共 60 字节
         // 前面是 ext4_extent_header，后面是 extent 或 extent_idx 数组
-        let header_ptr = inode.blocks.as_mut_ptr() as *mut ext4_extent_header;
-        let header = unsafe { &mut *header_ptr };
+        let header = inode.extent_header_mut();
 
         // 设置 header 字段
         header.depth = 0u16.to_le();       // 根节点即叶子
@@ -133,12 +132,7 @@ fn find_next_allocated_block<D: BlockDevice>(
 ) -> Result<u32> {
     // 读取 extent 树根节点
     let (root_data, depth) = inode_ref.with_inode(|inode| {
-        let root_data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60, // 15 * 4
-            ).to_vec()
-        };
+        let root_data = inode.extent_root_data().to_vec();
 
         let header = unsafe {
             *(root_data.as_ptr() as *const ext4_extent_header)
@@ -428,8 +422,7 @@ fn insert_extent_with_auto_split<D: BlockDevice>(
 ) -> Result<()> {
     // 1. 检查根节点是否满
     let (is_full, depth, entries, max) = inode_ref.with_inode(|inode| -> (bool, u16, u16, u16) {
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
 
         let entries = u16::from_le(header.entries);
         let max = u16::from_le(header.max);
@@ -551,8 +544,7 @@ fn find_target_leaf_block<D: BlockDevice>(
 ) -> Result<u64> {
     // 读取根节点
     let (current_block, root_depth) = inode_ref.with_inode_mut(|inode| -> Result<(u64, u16)> {
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
 
         let depth = u16::from_le(header.depth);
         if depth == 0 {
@@ -688,8 +680,7 @@ fn read_first_leaf_block<D: BlockDevice>(inode_ref: &mut InodeRef<D>) -> Result<
     // 这确保了我们能读到 grow_tree_depth 中 with_inode_mut 的最新修改
     let (mut current_block, root_depth) = inode_ref.with_inode_mut(|inode| -> Result<(u64, u16)> {
         // 读取 extent header
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
 
         let depth = u16::from_le(header.depth);
         if depth == 0 {
@@ -1132,8 +1123,7 @@ fn build_extent_path_for_leaf<D: BlockDevice>(
 ) -> Result<ExtentPath> {
     // 读取根节点信息
     let (root_header, max_depth) = inode_ref.with_inode(|inode| {
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
         let depth = u16::from_le(header.depth);
         (*header, depth)
     })?;
@@ -1371,8 +1361,7 @@ fn insert_extent_to_leaf<D: BlockDevice>(
 ) -> Result<()> {
     // 查找包含 logical_block 的叶子节点
     let (leaf_block, _depth) = inode_ref.with_inode(|inode| -> Result<(u64, u16)> {
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
         let depth = u16::from_le(header.depth);
 
         if depth == 0 {
@@ -1445,9 +1434,8 @@ pub(crate) fn insert_extent_simple<D: BlockDevice>(
     extent: &ext4_extent,
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| {
-        // 获取 extent header
-        let header_ptr = inode.blocks.as_mut_ptr() as *mut ext4_extent_header;
-        let header = unsafe { &mut *header_ptr };
+        // 获取 extent header（先读取值，避免借用冲突）
+        let header = *inode.extent_header();
 
         // 检查深度
         let depth = u16::from_le(header.depth);
@@ -1483,10 +1471,7 @@ pub(crate) fn insert_extent_simple<D: BlockDevice>(
             };
             let existing_block = u32::from_le(existing_extent.block);
 
-            // 🔧 关键修复：检查是否已存在相同的逻辑块
             if existing_block == new_block {
-                // 逻辑块已存在，这是一个严重错误
-                // 不应该重复插入相同的逻辑块
                 let existing_physical = crate::extent::helpers::ext4_ext_pblock(&existing_extent);
                 let new_physical = crate::extent::helpers::ext4_ext_pblock(extent);
                 log::error!(
@@ -1526,7 +1511,7 @@ pub(crate) fn insert_extent_simple<D: BlockDevice>(
         }
 
         // 更新 entries 计数
-        header.entries = (entries + 1).to_le();
+        inode.extent_header_mut().entries = (entries + 1).to_le();
 
         Ok(())
     })??;
@@ -1556,12 +1541,7 @@ fn find_extent_for_block<D: BlockDevice>(
 ) -> Result<Option<ext4_extent>> {
     // 读取 inode 中的 extent 树根节点
     let root_data = inode_ref.with_inode(|inode| {
-        let root_data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60, // 15 * 4
-            ).to_vec()
-        };
+        let root_data = inode.extent_root_data().to_vec();
         root_data
     })?;
 
@@ -1637,11 +1617,7 @@ fn find_extent_in_multilevel_tree<D: BlockDevice>(
             ));
         }
 
-        let idx = unsafe {
-            core::ptr::read_unaligned(
-                node_data[offset..].as_ptr() as *const ext4_extent_idx
-            )
-        };
+        let idx: ext4_extent_idx = crate::bytes::read_struct(&node_data[offset..])?;
 
         let idx_block = u32::from_le(idx.block);
         let leaf_lo = u32::from_le(idx.leaf_lo);
@@ -1868,21 +1844,13 @@ impl<'a, D: BlockDevice> ExtentWriter<'a, D> {
     ) -> Result<ExtentPath> {
         // 读取 inode 中的 extent 根节点
         let root_data = inode_ref.with_inode(|inode| {
-            let root_data = unsafe {
-                core::slice::from_raw_parts(
-                    inode.blocks.as_ptr() as *const u8,
-                    60, // 15 * 4 = 60 bytes
-                )
-            };
             let mut buf = alloc::vec![0u8; 60];
-            buf.copy_from_slice(root_data);
+            buf.copy_from_slice(inode.extent_root_data());
             buf
         })?;
 
         // 解析根节点 header
-        let root_header = unsafe {
-            core::ptr::read_unaligned(root_data.as_ptr() as *const ext4_extent_header)
-        };
+        let root_header: ext4_extent_header = crate::bytes::read_struct(&root_data)?;
 
         if !root_header.is_valid() {
             return Err(Error::new(
@@ -1927,9 +1895,7 @@ impl<'a, D: BlockDevice> ExtentWriter<'a, D> {
             drop(child_block);
 
             // 解析子节点 header
-            let child_header = unsafe {
-                core::ptr::read_unaligned(current_data.as_ptr() as *const ext4_extent_header)
-            };
+            let child_header: ext4_extent_header = crate::bytes::read_struct(&current_data)?;
 
             if !child_header.is_valid() {
                 return Err(Error::new(
@@ -1965,9 +1931,7 @@ impl<'a, D: BlockDevice> ExtentWriter<'a, D> {
 
     /// 在索引节点中查找目标块
     fn find_index_in_node(&self, node_data: &[u8], logical_block: u32) -> Result<u64> {
-        let header = unsafe {
-            core::ptr::read_unaligned(node_data.as_ptr() as *const ext4_extent_header)
-        };
+        let header: ext4_extent_header = crate::bytes::read_struct(node_data)?;
 
         let entries = header.entries_count() as usize;
         let header_size = core::mem::size_of::<ext4_extent_header>();
@@ -1985,11 +1949,7 @@ impl<'a, D: BlockDevice> ExtentWriter<'a, D> {
                 ));
             }
 
-            let idx = unsafe {
-                core::ptr::read_unaligned(
-                    node_data[offset..].as_ptr() as *const ext4_extent_idx
-                )
-            };
+            let idx: ext4_extent_idx = crate::bytes::read_struct(&node_data[offset..])?;
 
             let idx_block = idx.logical_block();
 
@@ -2120,12 +2080,7 @@ impl<'a, D: BlockDevice> ExtentWriter<'a, D> {
     ) -> Result<()> {
         inode_ref.with_inode_mut(|inode| {
             // inode.blocks 中前 60 字节是 extent 根节点
-            let extent_data = unsafe {
-                core::slice::from_raw_parts_mut(
-                    inode.blocks.as_mut_ptr() as *mut u8,
-                    60,
-                )
-            };
+            let extent_data = inode.extent_root_data_mut();
 
             // 解析 header
             let header = unsafe {
@@ -2449,8 +2404,7 @@ pub fn remove_space<D: BlockDevice>(
 ) -> Result<()> {
     // 读取 extent 树深度
     let depth = inode_ref.with_inode(|inode| {
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
         u16::from_le(header.depth)
     })?;
 
@@ -2505,8 +2459,7 @@ fn remove_space_simple<D: BlockDevice>(
     // 收集需要删除/修改的 extent 信息
     let modifications = inode_ref.with_inode(|inode| {
         let mut mods = Vec::new();
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
         let entries = u16::from_le(header.entries);
 
         let header_size = core::mem::size_of::<ext4_extent_header>();
@@ -2671,10 +2624,7 @@ fn remove_extent_at_index<D: BlockDevice>(
     index: usize,
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| {
-        let header_ptr = inode.blocks.as_mut_ptr() as *mut ext4_extent_header;
-        let header = unsafe { &mut *header_ptr };
-
-        let entries = u16::from_le(header.entries);
+        let entries = inode.extent_header().entries_count();
         if index >= entries as usize {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -2699,7 +2649,7 @@ fn remove_extent_at_index<D: BlockDevice>(
         }
 
         // 更新 entries 计数
-        header.entries = (entries - 1).to_le();
+        inode.extent_header_mut().entries = (entries - 1).to_le();
 
         Ok(())
     })??;
@@ -2719,8 +2669,7 @@ fn update_extent_at_index<D: BlockDevice>(
     new_start: u64,
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| {
-        let header_ptr = inode.blocks.as_ptr() as *const ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
 
         let entries = u16::from_le(header.entries);
         if index >= entries as usize {

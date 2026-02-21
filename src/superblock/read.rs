@@ -31,9 +31,7 @@ pub fn read_superblock<D: BlockDevice>(bdev: &mut BlockDev<D>) -> Result<ext4_sb
     bdev.read_bytes(EXT4_SUPERBLOCK_OFFSET, &mut sb_buf)?;
 
     // 解析 superblock
-    let sb = unsafe {
-        core::ptr::read_unaligned(sb_buf.as_ptr() as *const ext4_sblock)
-    };
+    let sb: ext4_sblock = crate::bytes::read_struct(&sb_buf)?;
 
     // 验证魔数
     if !sb.is_valid() {

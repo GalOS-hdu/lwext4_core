@@ -21,12 +21,7 @@ use crate::{
 /// 32 位 CRC32C 校验和
 pub fn compute_checksum(sb: &ext4_sblock) -> u32 {
     // 转换 superblock 为字节切片
-    let sb_bytes = unsafe {
-        core::slice::from_raw_parts(
-            sb as *const ext4_sblock as *const u8,
-            core::mem::size_of::<ext4_sblock>(),
-        )
-    };
+    let sb_bytes = crate::bytes::as_bytes(sb);
 
     // 计算校验和的范围：从开始到 checksum 字段之前
     // checksum 字段在结构体末尾附近，我们需要计算到它之前的所有字段

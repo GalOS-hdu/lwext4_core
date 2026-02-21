@@ -172,16 +172,7 @@ fn collect_remove_operations<D: BlockDevice>(
 
     // 读取根节点信息
     let (_depth, root_is_leaf) = inode_ref.with_inode(|inode| -> Result<(u16, bool)> {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
-
-        let header = unsafe {
-            *(data.as_ptr() as *const ext4_extent_header)
-        };
+        let header = inode.extent_header();
 
         let depth = header.depth();
         let is_leaf = header.is_leaf();
@@ -222,12 +213,7 @@ fn collect_leaf_operations_from_root<D: BlockDevice>(
     to: u32,
 ) -> Result<Vec<RemoveOp>> {
     inode_ref.with_inode(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data();
 
         collect_leaf_operations(data, from, to)
     })?
@@ -345,12 +331,7 @@ fn traverse_tree_for_remove<D: BlockDevice>(
     // 使用 DFS 遍历整个树
     // 从根节点开始
     let root_data = inode_ref.with_inode(|inode| -> Result<Vec<u8>> {
-        let data = unsafe {
-            core::slice::from_raw_parts(
-                inode.blocks.as_ptr() as *const u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data();
         Ok(data.to_vec())
     })??;
 
@@ -502,12 +483,7 @@ fn update_root_extents<D: BlockDevice>(
     operations: &[RemoveOp],
 ) -> Result<()> {
     inode_ref.with_inode_mut(|inode| {
-        let data = unsafe {
-            core::slice::from_raw_parts_mut(
-                inode.blocks.as_mut_ptr() as *mut u8,
-                60,
-            )
-        };
+        let data = inode.extent_root_data_mut();
 
         update_extent_array(data, operations)
     })??;

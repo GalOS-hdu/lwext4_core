@@ -114,6 +114,9 @@ pub mod xattr;
 /// CRC32C 校验和计算
 pub(crate) mod crc;
 
+/// 字节缓冲区与结构体转换工具
+pub(crate) mod bytes;
+
 // ===== C API 兼容层（可选）=====
 
 /// C API 兼容层

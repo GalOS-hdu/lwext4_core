@@ -161,8 +161,7 @@ pub fn split_extent_at<D: BlockDevice>(
 ) -> Result<()> {
     // 读取原始 extent（包括 unwritten 状态，用于回滚）
     let (ee_block, ee_len, ee_start, original_was_unwritten) = inode_ref.with_inode(|inode| {
-        let header_ptr = inode.blocks.as_ptr() as *const crate::types::ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
         let entries = u16::from_le(header.entries) as usize;
 
         if extent_idx >= entries {
@@ -173,9 +172,9 @@ pub fn split_extent_at<D: BlockDevice>(
         }
 
         let extent_ptr = unsafe {
-            (header_ptr.add(1) as *const ext4_extent).add(extent_idx)
+            (inode.extent_header() as *const crate::types::ext4_extent_header).add(1) as *const ext4_extent
         };
-        let extent = unsafe { &*extent_ptr };
+        let extent = unsafe { &*extent_ptr.add(extent_idx) };
 
         let ee_block = u32::from_le(extent.block);
         let ee_len = get_actual_len(extent);
@@ -192,7 +191,7 @@ pub fn split_extent_at<D: BlockDevice>(
     if split == ee_block {
         // 只需要改变状态，不需要分裂
         inode_ref.with_inode_mut(|inode| {
-            let header_ptr = inode.blocks.as_mut_ptr() as *mut crate::types::ext4_extent_header;
+            let header_ptr = inode.extent_header_mut() as *mut crate::types::ext4_extent_header;
             let extent_ptr = unsafe {
                 (header_ptr.add(1) as *mut ext4_extent).add(extent_idx)
             };
@@ -213,7 +212,7 @@ pub fn split_extent_at<D: BlockDevice>(
 
     // 第一步：修改原 extent 的长度
     inode_ref.with_inode_mut(|inode| {
-        let header_ptr = inode.blocks.as_mut_ptr() as *mut crate::types::ext4_extent_header;
+        let header_ptr = inode.extent_header_mut() as *mut crate::types::ext4_extent_header;
         let extent_ptr = unsafe {
             (header_ptr.add(1) as *mut ext4_extent).add(extent_idx)
         };
@@ -248,7 +247,7 @@ pub fn split_extent_at<D: BlockDevice>(
     if let Err(e) = insert_extent_simple(inode_ref, &new_extent) {
         // ✅ 完整回滚：恢复长度 + unwritten 状态
         inode_ref.with_inode_mut(|inode| {
-            let header_ptr = inode.blocks.as_mut_ptr() as *mut crate::types::ext4_extent_header;
+            let header_ptr = inode.extent_header_mut() as *mut crate::types::ext4_extent_header;
             let extent_ptr = unsafe {
                 (header_ptr.add(1) as *mut ext4_extent).add(extent_idx)
             };
@@ -301,8 +300,7 @@ pub fn convert_to_initialized<D: BlockDevice>(
 ) -> Result<()> {
     // 读取 extent 信息
     let (ee_block, ee_len) = inode_ref.with_inode(|inode| {
-        let header_ptr = inode.blocks.as_ptr() as *const crate::types::ext4_extent_header;
-        let header = unsafe { &*header_ptr };
+        let header = inode.extent_header();
         let entries = u16::from_le(header.entries) as usize;
 
         if extent_idx >= entries {
@@ -313,9 +311,9 @@ pub fn convert_to_initialized<D: BlockDevice>(
         }
 
         let extent_ptr = unsafe {
-            (header_ptr.add(1) as *const ext4_extent).add(extent_idx)
+            (inode.extent_header() as *const crate::types::ext4_extent_header).add(1) as *const ext4_extent
         };
-        let extent = unsafe { &*extent_ptr };
+        let extent = unsafe { &*extent_ptr.add(extent_idx) };
 
         let ee_block = u32::from_le(extent.block);
         let ee_len = get_actual_len(extent);

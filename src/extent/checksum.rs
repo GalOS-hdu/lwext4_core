@@ -212,12 +212,7 @@ pub fn set_inode_extent_checksum<D: BlockDevice>(
         let inode_gen = u32::from_le(inode.generation);
 
         // 将 inode.blocks ([u32; 15]) 转换为字节切片 [u8; 60]
-        let block_data = unsafe {
-            core::slice::from_raw_parts_mut(
-                inode.blocks.as_mut_ptr() as *mut u8,
-                core::mem::size_of_val(&inode.blocks),
-            )
-        };
+        let block_data = inode.extent_root_data_mut();
 
         set_checksum(sb, inode_num, inode_gen, block_data);
     })?;

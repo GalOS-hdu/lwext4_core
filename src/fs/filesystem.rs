@@ -1275,12 +1275,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
             if target.len() < 60 {
                 // 快速符号链接：存储在 inode.block 中
                 inode_ref.with_inode_mut(|inode| {
-                    let block_slice = unsafe {
-                        core::slice::from_raw_parts_mut(
-                            inode.blocks.as_mut_ptr() as *mut u8,
-                            60,
-                        )
-                    };
+                    let block_slice = inode.extent_root_data_mut();
                     block_slice[..target_bytes.len()].copy_from_slice(target_bytes);
                 })?;
             } else {
@@ -1374,9 +1369,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
         let target_bytes = if size < 60 {
             // 快速符号链接：从 inode.blocks 读取
             inode_ref.with_inode(|inode| {
-                let block_slice = unsafe {
-                    core::slice::from_raw_parts(inode.blocks.as_ptr() as *const u8, size)
-                };
+                let block_slice = &inode.extent_root_data()[..size];
                 block_slice.to_vec()
             })?
         } else {

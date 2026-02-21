@@ -210,12 +210,7 @@ fn change_extent_status<D: BlockDevice>(
 ) -> Result<()> {
     if node_type == ExtentNodeType::Root {
         inode_ref.with_inode_mut(|inode| -> Result<()> {
-            let data = unsafe {
-                core::slice::from_raw_parts_mut(
-                    inode.blocks.as_mut_ptr() as *mut u8,
-                    60,
-                )
-            };
+            let data = inode.extent_root_data_mut();
 
             let header_size = core::mem::size_of::<ext4_extent_header>();
             let extent_size = core::mem::size_of::<ext4_extent>();

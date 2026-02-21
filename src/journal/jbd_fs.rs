@@ -90,9 +90,7 @@ impl JbdFs {
         let mut block = Block::get(bdev, first_block)?;
         let jbd_sb = block.with_data(|data| {
             // Journal superblock 位于块的开头
-            let sb = unsafe {
-                core::ptr::read_unaligned(data.as_ptr() as *const jbd_sb)
-            };
+            let sb: jbd_sb = crate::bytes::read_struct(data)?;
 
             // 验证 magic number
             if !sb.is_valid() {

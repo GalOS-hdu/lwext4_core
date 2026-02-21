@@ -57,9 +57,7 @@ pub fn read_inode<D: BlockDevice>(
     let mut inode_buf = vec![0u8; inode_size as usize];
     bdev.read_bytes(inode_offset, &mut inode_buf)?;
 
-    let inode = unsafe {
-        core::ptr::read_unaligned(inode_buf.as_ptr() as *const ext4_inode)
-    };
+    let inode: ext4_inode = crate::bytes::read_struct(&inode_buf)?;
 
     Ok(inode)
 }

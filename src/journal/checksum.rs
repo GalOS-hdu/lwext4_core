@@ -41,18 +41,12 @@ pub fn verify_descriptor_block(uuid: &[u8; 16], data: &[u8]) -> bool {
     }
 
     // 读取块头获取序列号
-    let header = unsafe {
-        core::ptr::read_unaligned(data.as_ptr() as *const jbd_bhdr)
-    };
+    let header: jbd_bhdr = crate::bytes::read_struct(data).unwrap();
     let sequence = u32::from_be(header.sequence);
 
     // 读取存储在块尾部的校验和
     let tail_offset = data.len() - tail_size;
-    let tail = unsafe {
-        core::ptr::read_unaligned(
-            data.as_ptr().add(tail_offset) as *const jbd_block_tail
-        )
-    };
+    let tail: jbd_block_tail = crate::bytes::read_struct(&data[tail_offset..]).unwrap();
     let stored_csum = u32::from_be(tail.checksum);
 
     // 计算校验和（不包含尾部）
@@ -77,9 +71,7 @@ pub fn verify_commit_block(uuid: &[u8; 16], data: &[u8]) -> bool {
         return false;
     }
 
-    let commit_header = unsafe {
-        core::ptr::read_unaligned(data.as_ptr() as *const jbd_commit_header)
-    };
+    let commit_header: jbd_commit_header = crate::bytes::read_struct(data).unwrap();
 
     // 获取存储的校验和
     let stored_csum = u32::from_be(commit_header.chksum[0]);
@@ -222,12 +214,7 @@ pub fn verify_superblock_csum(sb: &jbd_sb) -> bool {
     let mut sb_copy = *sb;
     sb_copy.checksum = 0;
 
-    let data = unsafe {
-        core::slice::from_raw_parts(
-            &sb_copy as *const jbd_sb as *const u8,
-            core::mem::size_of::<jbd_sb>(),
-        )
-    };
+    let data = crate::bytes::as_bytes(&sb_copy);
 
     let calculated_csum = crate::crc::crc32c(data);
 
@@ -244,12 +231,7 @@ pub fn calculate_superblock_csum(sb: &mut jbd_sb) {
     sb.checksum = 0;
 
     // 计算校验和
-    let data = unsafe {
-        core::slice::from_raw_parts(
-            sb as *const jbd_sb as *const u8,
-            core::mem::size_of::<jbd_sb>(),
-        )
-    };
+    let data = crate::bytes::as_bytes(sb);
 
     let csum = crate::crc::crc32c(data);
     sb.checksum = csum.to_be();

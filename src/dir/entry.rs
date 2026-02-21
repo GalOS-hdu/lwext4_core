@@ -136,9 +136,7 @@ impl<'a, D: BlockDevice> DirIterator<'a, D> {
             }
 
             // 读取目录项
-            let entry_ptr =
-                self.block_data[self.offset_in_block..].as_ptr() as *const ext4_dir_entry;
-            let entry = unsafe { core::ptr::read_unaligned(entry_ptr) };
+            let entry: ext4_dir_entry = crate::bytes::read_struct(&self.block_data[self.offset_in_block..])?;
 
             let inode = u32::from_le(entry.inode);
             let rec_len = u16::from_le(entry.rec_len) as usize;

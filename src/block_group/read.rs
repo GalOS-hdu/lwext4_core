@@ -135,9 +135,7 @@ pub fn read_block_group_desc<D: BlockDevice>(
     let mut desc_buf = vec![0u8; core::mem::size_of::<ext4_group_desc>()];
     bdev.read_bytes(desc_offset, &mut desc_buf)?;
 
-    let desc = unsafe {
-        core::ptr::read_unaligned(desc_buf.as_ptr() as *const ext4_group_desc)
-    };
+    let desc: ext4_group_desc = crate::bytes::read_struct(&desc_buf)?;
 
     Ok(desc)
 }

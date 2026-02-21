@@ -932,8 +932,8 @@ pub fn dx_init<D: BlockDevice>(
 /// 计算目录项所需长度（8字节对齐）
 fn calculate_entry_len(name_len: u8) -> u16 {
     let base_len = core::mem::size_of::<ext4_dir_entry>() + name_len as usize;
-    // 8字节对齐
-    ((base_len + 7) & !7) as u16
+    // 4字节对齐（与 lwext4 C 实现一致）
+    ((base_len + 3) & !3) as u16
 }
 
 /// 更新目录块校验和（不需要 InodeRef 的版本）
@@ -1124,15 +1124,22 @@ mod tests {
 
     #[test]
     fn test_calculate_entry_len() {
-        // 基础大小：12 字节（ext4_dir_entry）
-        // 名称 "a" (1) -> 12 + 1 = 13 -> 对齐到 16
-        assert_eq!(calculate_entry_len(1), 16);
+        // 基础大小：8 字节（ext4_dir_entry: u32+u16+u8+u8），4字节对齐
+        // 与 lwext4 C 实现一致: required_len = sizeof(ext4_fake_dir_entry) + name_len, 4字节对齐
+        // 名称 "a" (1) -> 8 + 1 = 9 -> 对齐到 12
+        assert_eq!(calculate_entry_len(1), 12);
 
-        // 名称 "ab" (2) -> 12 + 2 = 14 -> 对齐到 16
-        assert_eq!(calculate_entry_len(2), 16);
+        // 名称 "ab" (2) -> 8 + 2 = 10 -> 对齐到 12
+        assert_eq!(calculate_entry_len(2), 12);
 
-        // 名称 "abcdefgh" (8) -> 12 + 8 = 20 -> 对齐到 24
-        assert_eq!(calculate_entry_len(8), 24);
+        // 名称 "abcd" (4) -> 8 + 4 = 12 -> 已对齐 12
+        assert_eq!(calculate_entry_len(4), 12);
+
+        // 名称 "abcde" (5) -> 8 + 5 = 13 -> 对齐到 16
+        assert_eq!(calculate_entry_len(5), 16);
+
+        // 名称 "abcdefgh" (8) -> 8 + 8 = 16 -> 已对齐 16
+        assert_eq!(calculate_entry_len(8), 16);
     }
 
     #[test]

@@ -136,9 +136,7 @@ fn scan_journal<D: BlockDevice>(
                     return Ok::<_, Error>((0u32, 0u32, 0u32));
                 }
 
-                let header = unsafe {
-                    core::ptr::read_unaligned(data.as_ptr() as *const jbd_bhdr)
-                };
+                let header: jbd_bhdr = crate::bytes::read_struct(data)?;
 
                 Ok::<_, Error>((
                     u32::from_be(header.magic),
@@ -221,11 +219,7 @@ fn scan_descriptor_block<D: BlockDevice>(
 
         // 解析所有 block tags
         while offset + core::mem::size_of::<jbd_block_tag>() <= block_size {
-            let tag = unsafe {
-                core::ptr::read_unaligned(
-                    data.as_ptr().add(offset) as *const jbd_block_tag
-                )
-            };
+            let tag: jbd_block_tag = crate::bytes::read_struct(&data[offset..])?;
 
             let fs_block = u32::from_be(tag.blocknr) as u64;
             let flags = u16::from_be(tag.flags);
