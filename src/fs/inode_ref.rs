@@ -955,7 +955,7 @@ impl<'a, D: BlockDevice> InodeRef<'a, D> {
                         eprintln!("[inode_ref] Physical block={}", physical_block);
 
                         // 读取块数据（复用 block_buf）
-                        let result = self.bdev.read_blocks_direct(physical_block, 1, &mut block_buf);
+                        let result = self.bdev.read_block(physical_block, &mut block_buf);
 
                         #[cfg(feature = "std")]
                         eprintln!("[inode_ref] Read result: {:?}", result);

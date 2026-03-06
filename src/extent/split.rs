@@ -14,7 +14,7 @@ use crate::{
 
 use super::{
     helpers::*,
-    write::{ExtentPath, ExtentNodeType},
+    path::{ExtentPath, ExtentNodeType},
 };
 
 use alloc::vec::Vec;

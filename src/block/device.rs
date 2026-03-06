@@ -513,7 +513,7 @@ impl<D: BlockDevice> BlockDev<D> {
     /// # 返回
     ///
     /// 成功返回读取的字节数
-    pub fn read_blocks_direct(&mut self, lba: u64, count: u32, buf: &mut [u8]) -> Result<usize> {
+    pub(crate) fn read_blocks_direct(&mut self, lba: u64, count: u32, buf: &mut [u8]) -> Result<usize> {
         let block_size = self.device.block_size();
         let required_size = count as usize * block_size as usize;
 
@@ -553,7 +553,7 @@ impl<D: BlockDevice> BlockDev<D> {
     /// # 返回
     ///
     /// 成功返回写入的字节数
-    pub fn write_blocks_direct(&mut self, lba: u64, count: u32, buf: &[u8]) -> Result<usize> {
+    pub(crate) fn write_blocks_direct(&mut self, lba: u64, count: u32, buf: &[u8]) -> Result<usize> {
         let block_size = self.device.block_size();
         let required_size = count as usize * block_size as usize;
 
@@ -573,81 +573,6 @@ impl<D: BlockDevice> BlockDev<D> {
         self.inc_write_count();
         self.inc_physical_write_count();
         self.device.write_blocks(pba, sector_count, buf)
-    }
-
-    /// 直接读取字节（绕过缓存）
-    ///
-    /// 对应 lwext4 的 `ext4_block_readbytes`
-    ///
-    /// # 参数
-    ///
-    /// * `offset` - 字节偏移量
-    /// * `buf` - 目标缓冲区
-    ///
-    /// # 返回
-    ///
-    /// 成功返回读取的字节数
-    pub fn read_bytes_direct(&mut self, offset: u64, buf: &mut [u8]) -> Result<usize> {
-        let len = buf.len();
-        let block_size = self.device.block_size() as u64;
-
-        // 计算起始块和块内偏移
-        let start_block = offset / block_size;
-        let block_offset = (offset % block_size) as usize;
-
-        // 计算需要读取的块数
-        let total_size = block_offset + len;
-        let block_count = (total_size as u64).div_ceil(block_size) as u32;
-
-        // 分配临时缓冲区
-        let mut temp = alloc::vec![0u8; block_count as usize * block_size as usize];
-
-        // 直接读取所有相关块
-        self.read_blocks_direct(start_block, block_count, &mut temp)?;
-
-        // 复制所需字节
-        buf.copy_from_slice(&temp[block_offset..block_offset + len]);
-
-        Ok(len)
-    }
-
-    /// 直接写入字节（绕过缓存）
-    ///
-    /// 对应 lwext4 的 `ext4_block_writebytes`
-    ///
-    /// # 参数
-    ///
-    /// * `offset` - 字节偏移量
-    /// * `buf` - 源数据缓冲区
-    ///
-    /// # 返回
-    ///
-    /// 成功返回写入的字节数
-    pub fn write_bytes_direct(&mut self, offset: u64, buf: &[u8]) -> Result<usize> {
-        let len = buf.len();
-        let block_size = self.device.block_size() as u64;
-
-        let start_block = offset / block_size;
-        let block_offset = (offset % block_size) as usize;
-
-        let total_size = block_offset + len;
-        let block_count = (total_size as u64).div_ceil(block_size) as u32;
-
-        let mut temp = alloc::vec![0u8; block_count as usize * block_size as usize];
-
-        // 如果不是块对齐，需要先读取现有数据
-        if block_offset != 0 || len % block_size as usize != 0 {
-            // 忽略读取错误（可能是新块）
-            let _ = self.read_blocks_direct(start_block, block_count, &mut temp);
-        }
-
-        // 写入数据到临时缓冲区
-        temp[block_offset..block_offset + len].copy_from_slice(buf);
-
-        // 直接写回所有块
-        self.write_blocks_direct(start_block, block_count, &temp)?;
-
-        Ok(len)
     }
 
     // ===== 缓存管理接口 =====

@@ -31,7 +31,7 @@ use crate::{
 
 use super::{
     helpers::ext4_ext_store_pblock,
-    write::ExtentNodeType,
+    path::ExtentNodeType,
 };
 
 use alloc::vec::Vec;

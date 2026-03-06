@@ -27,7 +27,8 @@ use super::{
     unwritten::{get_actual_len, get_pblock, is_unwritten,
                 mark_initialized, mark_unwritten, store_pblock,
                 EXT4_EXT_MARK_UNWRIT1, EXT4_EXT_MARK_UNWRIT2},
-    write::{ExtentNodeType, ExtentWriter},
+    path::ExtentNodeType,
+    write::ExtentWriter,
 };
 
 

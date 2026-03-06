@@ -56,13 +56,14 @@
 //! - ✅ Unwritten extent 支持（预分配、状态转换）
 //! - ✅ 完整性验证（结构检查、校验和验证）
 //! - ✅ Extent 自动合并（减少碎片化）
-//! TODO: extent模块的代码结构需要进一步优化，可以适当重构,减少代码冗余
-//! 对于类似的功能，grow.rs write.rs split.rs 可能存在多个不同的实现 
-
 mod checksum;
 mod grow;
 mod helpers;
+mod insert;
+mod lookup;
 mod merge;
+mod node_ops;
+mod path;
 mod remove;
 mod split;
 mod tree;
@@ -85,6 +86,6 @@ pub use unwritten_multilevel::{
 };
 pub use verify::*;
 pub use write::{
-    get_blocks, remove_space, tree_init, ExtentPath, ExtentPathNode, ExtentNodeType,
+    get_blocks, remove_space, tree_init,
     ExtentWriter,
 };

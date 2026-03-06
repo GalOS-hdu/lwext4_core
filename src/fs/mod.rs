@@ -8,6 +8,9 @@ mod metadata;
 mod inode_ref;
 mod block_group_ref;
 mod types;
+mod path_ops;
+mod alloc_ops;
+mod vfs_ops;
 
 pub use filesystem::Ext4FileSystem;
 pub use file::File;

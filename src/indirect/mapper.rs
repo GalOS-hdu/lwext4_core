@@ -272,7 +272,7 @@ impl IndirectBlockMapper {
         // 读取间接块数据
         let block_size = blockdev.block_size() as usize;
         let mut buf = vec![0u8; block_size];
-        blockdev.read_blocks_direct(indirect_block, 1, &mut buf)?;
+        blockdev.read_block(indirect_block, &mut buf)?;
 
         // 计算指针在块内的字节偏移
         let offset = (index as usize) * 4;

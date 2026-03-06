@@ -27,7 +27,7 @@
 use crate::{
     block::BlockDevice,
     error::{Error, ErrorKind, Result},
-    extent::write::insert_extent_simple,
+    extent::insert::insert_extent_simple,
     fs::InodeRef,
     superblock::Superblock,
     types::ext4_extent,
