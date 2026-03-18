@@ -27,6 +27,7 @@ pub struct File<D: BlockDevice> {
     /// 当前文件偏移
     offset: u64,
     /// 块大小（缓存以提高性能）
+    #[allow(dead_code)] // 缓存供文件操作快速获取块大小，避免重复访问 Superblock
     block_size: u32,
     _phantom: core::marker::PhantomData<D>,
 }

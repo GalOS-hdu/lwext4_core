@@ -146,6 +146,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
     // ========== 内部辅助方法 ==========
 
     /// 获取或分配文件块（供 File::write 使用）
+    #[allow(dead_code)] // 待文件随机写入 API 重设计后使用
     pub(crate) fn get_file_block(&mut self, inode_num: u32, logical_block: u32) -> Result<u64> {
         let mut inode_ref = InodeRef::get(&mut self.bdev, &mut self.sb, inode_num)?;
 

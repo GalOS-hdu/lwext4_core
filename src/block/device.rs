@@ -345,23 +345,22 @@ impl<D: BlockDevice> BlockDev<D> {
         self.device.block_size() / self.device.sector_size()
     }
 
-    /// issue：当前这些计数的追踪并不准确
-    /// 增加读计数
+    /// 增加逻辑读计数（每次 read_block 调用时递增）
     pub(super) fn inc_read_count(&mut self) {
         self.read_count += 1;
     }
 
-    /// 增加写计数
+    /// 增加逻辑写计数（每次 write_block 调用时递增）
     pub(super) fn inc_write_count(&mut self) {
         self.write_count += 1;
     }
 
-    /// 增加物理读计数
+    /// 增加物理读计数（实际调用 device.read_blocks 时递增）
     pub(super) fn inc_physical_read_count(&mut self) {
         self.physical_read_count += 1;
     }
 
-    /// 增加物理写计数
+    /// 增加物理写计数（实际调用 device.write_blocks 时递增）
     pub(super) fn inc_physical_write_count(&mut self) {
         self.physical_write_count += 1;
     }
@@ -412,6 +411,7 @@ impl<D: BlockDevice> BlockDev<D> {
         // 计算物理地址并写入
         let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
         let count = (block_size as usize).div_ceil(sector_size as usize);
+        self.inc_physical_write_count();
         self.device_mut().write_blocks(pba, count as u32, &flush_buf)?;
 
         // 重新借用cache并标记为clean
@@ -479,6 +479,7 @@ impl<D: BlockDevice> BlockDev<D> {
                 // 进行I/O（此时没有cache借用）
                 let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
                 let sector_count = (block_size as usize).div_ceil(sector_size as usize);
+                self.inc_physical_write_count();
                 self.device_mut().write_blocks(pba, sector_count as u32, &flush_buf)?;
 
                 // 标记clean
@@ -491,88 +492,6 @@ impl<D: BlockDevice> BlockDev<D> {
         }
 
         Ok(actual_count)
-    }
-
-    // ===== 直接访问接口（绕过缓存）=====
-
-    /// 直接读取块（绕过缓存）
-    ///
-    /// 对应 lwext4 的 `ext4_blocks_get_direct`
-    ///
-    /// 这个方法直接从设备读取数据，不经过缓存。主要用于：
-    /// - 读取元数据（如超级块、组描述符）
-    /// - 实现特殊的 I/O 策略
-    /// - 避免污染缓存
-    ///
-    /// # 参数
-    ///
-    /// * `lba` - 起始逻辑块地址
-    /// * `count` - 要读取的块数
-    /// * `buf` - 目标缓冲区
-    ///
-    /// # 返回
-    ///
-    /// 成功返回读取的字节数
-    pub(crate) fn read_blocks_direct(&mut self, lba: u64, count: u32, buf: &mut [u8]) -> Result<usize> {
-        let block_size = self.device.block_size();
-        let required_size = count as usize * block_size as usize;
-
-        if buf.len() < required_size {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Buffer too small for requested blocks",
-            ));
-        }
-
-        // 转换为物理扇区地址
-        let pba = self.logical_to_physical(lba);
-        let sectors_per_block = self.sectors_per_block();
-        let sector_count = count * sectors_per_block;
-
-        // 直接从设备读取
-        self.inc_read_count();
-        self.inc_physical_read_count();
-        self.device.read_blocks(pba, sector_count, buf)
-    }
-
-    /// 直接写入块（绕过缓存）
-    ///
-    /// 对应 lwext4 的 `ext4_blocks_set_direct`
-    ///
-    /// 这个方法直接写入设备，不经过缓存。主要用于：
-    /// - 写入元数据（如超级块、组描述符）
-    /// - 实现特殊的 I/O 策略
-    /// - 确保数据立即持久化
-    ///
-    /// # 参数
-    ///
-    /// * `lba` - 起始逻辑块地址
-    /// * `count` - 要写入的块数
-    /// * `buf` - 源数据缓冲区
-    ///
-    /// # 返回
-    ///
-    /// 成功返回写入的字节数
-    pub(crate) fn write_blocks_direct(&mut self, lba: u64, count: u32, buf: &[u8]) -> Result<usize> {
-        let block_size = self.device.block_size();
-        let required_size = count as usize * block_size as usize;
-
-        if buf.len() < required_size {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Buffer too small for requested blocks",
-            ));
-        }
-
-        // 转换为物理扇区地址
-        let pba = self.logical_to_physical(lba);
-        let sectors_per_block = self.sectors_per_block();
-        let sector_count = count * sectors_per_block;
-
-        // 直接写入设备
-        self.inc_write_count();
-        self.inc_physical_write_count();
-        self.device.write_blocks(pba, sector_count, buf)
     }
 
     // ===== 缓存管理接口 =====

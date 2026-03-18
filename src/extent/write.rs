@@ -389,6 +389,7 @@ pub fn get_blocks<D: BlockDevice>(
 /// 提供 extent 树的修改操作
 pub struct ExtentWriter<'a, D: BlockDevice> {
     trans: &'a mut SimpleTransaction<'a, D>,
+    #[allow(dead_code)] // 供 ExtentWriter 扩展方法使用（如 split_node 等）
     block_size: u32,
 }
 

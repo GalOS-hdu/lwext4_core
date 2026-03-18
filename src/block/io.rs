@@ -49,6 +49,7 @@ impl<D: BlockDevice> BlockDev<D> {
             // 缓存未命中 - 从设备读取到用户缓冲区
             let pba = self.logical_to_physical(lba);
             let count = self.sectors_per_block();
+            self.inc_physical_read_count();
             self.device_mut().read_blocks(pba, count, buf)?;
 
             // 将数据填充到缓存
@@ -79,6 +80,7 @@ impl<D: BlockDevice> BlockDev<D> {
         // 无缓存 - 直接从设备读取
         let pba = self.logical_to_physical(lba);
         let count = self.sectors_per_block();
+        self.inc_physical_read_count();
         self.device_mut().read_blocks(pba, count, buf)
     }
 
@@ -152,6 +154,7 @@ impl<D: BlockDevice> BlockDev<D> {
         // 无缓存 - 直接写入设备
         let pba = self.logical_to_physical(lba);
         let count = self.sectors_per_block();
+        self.inc_physical_write_count();
         self.device_mut().write_blocks(pba, count, buf)
     }
 
@@ -313,6 +316,7 @@ impl<D: BlockDevice> BlockDev<D> {
                 // 进行I/O操作（此时没有cache借用）
                 let pba = (lba * block_size as u64 + partition_offset) / sector_size as u64;
                 let count = (block_size as usize).div_ceil(sector_size as usize);
+                self.inc_physical_write_count();
                 self.device_mut().write_blocks(pba, count as u32, &flush_buf)?;
 
                 // 标记为clean

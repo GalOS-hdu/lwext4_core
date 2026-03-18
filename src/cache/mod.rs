@@ -30,7 +30,7 @@
 //! | `SLIST_HEAD(dirty_list)`          | `BTreeSet<u64>`                   |
 //! | `ext4_bcache_alloc()`             | [`BlockCache::alloc()`]           |
 //! | `ext4_bcache_free()`              | *(不再需要)*                       |
-//! | `ext4_bcache_find_get()`          | *(合并到 alloc)*                   |
+//! | `ext4_bcache_find_get()`          | *(已合并到 alloc)*                  |
 //! | `ext4_buf_lowest_lru()`           | *(lru crate 内部)*                 |
 //! | `ext4_bcache_invalidate_lba()`    | [`BlockCache::invalidate_buffer()`]|
 //! | `ext4_block_cache_flush()`        | [`BlockCache::flush_all()`]       |

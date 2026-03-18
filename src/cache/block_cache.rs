@@ -257,33 +257,6 @@ impl BlockCache {
         ))
     }
 
-    /// 查找块（不增加引用计数，因为无引用计数了！）
-    ///
-    /// 对应 lwext4 的 `ext4_bcache_find_get`
-    ///
-    /// # 参数
-    ///
-    /// * `lba` - 逻辑块地址
-    ///
-    /// # 返回
-    ///
-    /// 如果找到返回块的可变引用，否则返回 None
-    ///
-    /// 注意：get_mut 会自动更新LRU顺序
-    /// TODO: 这个方法已经不再使用，因为重构了device与cache的职责，
-    /// 现在device负责实际的I/O操作，cache负责缓存管理。将来或许考虑删除这个方法。
-    pub fn find_get(&mut self, lba: u64) -> Option<&mut CacheBuffer> {
-        self.stats.total_accesses += 1;
-
-        if self.cache.contains(&lba) {
-            self.stats.hits += 1;
-            self.cache.get_mut(&lba)
-        } else {
-            self.stats.misses += 1;
-            None
-        }
-    }
-
     /// 标记块为脏
     ///
     /// # 参数
@@ -345,9 +318,7 @@ impl BlockCache {
         Err(Error::new(ErrorKind::NotFound, "Block not in cache"))
     }
 
-    /// TODO: flush_lba flush_all 这两个方法已经不再使用，因为重构了device与cache的职责，
-    /// 现在device负责实际的I/O操作，cache负责缓存管理。将来或许考虑删除这两个方法。
-    /// 刷新单个块到磁盘
+    /// 刷新单个块到磁盘（被 flush_all → flush_some_dirty_blocks 链间接使用）
     ///
     /// # 参数
     ///
@@ -695,9 +666,9 @@ mod tests {
         assert_eq!(cache.len(), 4);
 
         // 块0应该还在
-        assert!(cache.find_get(0).is_some());
+        assert!(cache.get_block_data(0).is_some());
         // 块1应该被驱逐
-        assert!(cache.find_get(1).is_none());
+        assert!(cache.get_block_data(1).is_none());
     }
 
     #[test]
@@ -711,13 +682,11 @@ mod tests {
         cache.mark_dirty(10).unwrap();
 
         assert_eq!(cache.dirty_count(), 1);
-        assert!(cache.find_get(10).unwrap().is_dirty());
 
         // 刷新
         cache.flush_lba(10, &mut device, 512, 0).unwrap();
 
         assert_eq!(cache.dirty_count(), 0);
-        assert!(!cache.find_get(10).unwrap().is_dirty());
     }
 
     #[test]

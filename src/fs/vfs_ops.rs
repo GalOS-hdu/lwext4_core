@@ -330,7 +330,7 @@ impl<D: BlockDevice> Ext4FileSystem<D> {
 
             // 如果是目录，初始化目录结构
             if is_dir {
-                crate::dir::write::dir_init(&mut inode_ref, parent_inode)?;
+                crate::dir::write_init::dir_init(&mut inode_ref, parent_inode)?;
             }
         }
 

@@ -50,7 +50,7 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(deprecated)]
 #![allow(non_snake_case)]
-#![allow(dead_code)]
+// dead_code 由各模块局部控制，不再全局压制
 #![allow(private_interfaces)]
 
 extern crate alloc;
@@ -103,12 +103,15 @@ pub mod ialloc;
 pub mod balloc;
 
 /// Transaction 系统
+#[allow(dead_code)]
 pub mod transaction;
 
-/// Journal (JBD2) 系统
+/// Journal (JBD2) 系统（P3d 预留，尚未接入上层）
+#[allow(dead_code)]
 pub mod journal;
 
 /// Extended Attributes (xattr)
+#[allow(dead_code)]
 pub mod xattr;
 
 /// CRC32C 校验和计算

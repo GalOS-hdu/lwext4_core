@@ -38,6 +38,7 @@ pub struct DirIterator {
     /// 目录的总大小
     total_size: u64,
     /// 是否已初始化
+    #[allow(dead_code)]
     initialized: bool,
 }
 

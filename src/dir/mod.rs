@@ -18,7 +18,9 @@ pub mod reader;
 pub mod path_lookup;
 pub mod hash;
 pub mod htree;
+pub mod htree_split;
 pub mod write;
+pub mod write_init;
 
 // 重新导出常用类型
 pub use iterator::{DirEntry, DirIterator, read_dir};

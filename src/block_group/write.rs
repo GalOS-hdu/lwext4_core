@@ -52,6 +52,7 @@ pub fn write_block_group_desc<D: BlockDevice>(
 
 impl BlockGroup {
     /// 获取内部块组描述符的可变引用
+    #[allow(dead_code)] // 块组写入功能扩展时使用
     pub(crate) fn inner_mut(&mut self) -> &mut ext4_group_desc {
         &mut self.inner
     }

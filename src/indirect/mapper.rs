@@ -13,6 +13,7 @@ use crate::BlockDevice;
 /// 用于计算文件系统中的间接块限制和执行块映射。
 pub struct IndirectBlockMapper {
     /// 每个间接块可以容纳的指针数量 (block_size / 4)
+    #[allow(dead_code)] // 存储以便调试/测试直接访问，实际计算通过 blocks_per_level 完成
     blocks_per_indirect: u32,
 
     /// 每个间接层级的块数限制
